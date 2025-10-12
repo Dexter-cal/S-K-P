@@ -6,3 +6,4 @@ scikit-image
 requests
 pynput
 scapy
+argcomplete
