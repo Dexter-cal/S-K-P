@@ -1,0 +1,6 @@
+Pillow
+cryptography
+numpy
+opencv-python
+scikit-image
+requests
