@@ -18,6 +18,7 @@ from modules.discovery import discover_files
 from modules.mitm import start_arp_spoof
 from modules.wizard import encode_wizard
 from modules.covert_channel import send_arp_covert, listen_arp_covert
+from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -57,6 +58,7 @@ def main():
     encode_parser.add_argument("--bits", type=int, default=1, help="Number of bits per color channel to use")
     encode_parser.add_argument("--opap", action="store_true", help="Use Optimal Pixel Adjustment Process (OPAP)")
     encode_parser.add_argument("--morph", action="store_true", help="Morph the payload before encoding")
+    encode_parser.add_argument("--polymorphic", action="store_true", help="Generate a polymorphic payload")
 
     decode_parser = subparsers.add_parser("decode-image", help="Extract payload from an image")
     decode_parser.add_argument("--input-image", required=True, help="Input image path")
@@ -91,6 +93,7 @@ def main():
     gen_payload_parser.add_argument("--obfuscate", action="store_true", help="Obfuscate the payload")
     gen_payload_parser.add_argument("--obfuscate-method", default='base64', choices=['base64', 'xor'], help="Obfuscation method")
     gen_payload_parser.add_argument("--morph", action="store_true", help="Morph the payload")
+    gen_payload_parser.add_argument("--polymorphic", action="store_true", help="Generate a polymorphic payload")
     gen_payload_parser.add_argument("--output-file", help="File to save the generated payload")
 
     # Detect command
@@ -157,9 +160,16 @@ def main():
 
     try:
         if args.command == "encode-image":
+            payload_to_embed = args.payload.encode()
+            if args.polymorphic:
+                base_payload = payload_to_embed
+                # In a real scenario, this might be shellcode or a python script
+                polymorphic_code = create_polymorphic_payload(base_payload.decode())
+                payload_to_embed = generate_encryption_stub(polymorphic_code.encode()).encode()
+
             encode_image(
                 input_path=args.input_image,
-                payload=args.payload,
+                payload=payload_to_embed,
                 output_path=args.output_image,
                 bits_per_channel=args.bits,
                 encrypt=args.encrypt,
@@ -198,9 +208,18 @@ def main():
             create_polyglot(args.image, args.zip, args.output)
 
         elif args.command == "gen-payload":
-            payload = generate_payload(
-                payload_type=args.type,
-                length=args.length,
+            if args.polymorphic:
+                base_payload = generate_payload(
+                    payload_type=args.type,
+                    length=args.length,
+                    data=args.data
+                )
+                polymorphic_code = create_polymorphic_payload(base_payload.decode(errors='ignore'))
+                payload = generate_encryption_stub(polymorphic_code.encode()).encode()
+            else:
+                payload = generate_payload(
+                    payload_type=args.type,
+                    length=args.length,
                 data=args.data,
                 obfuscate=args.obfuscate,
                 obfuscate_method=args.obfuscate_method,
