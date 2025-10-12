@@ -14,6 +14,8 @@ from modules.keylogger import start_keylogger
 from modules.system import add_persistence, mimic_system_tool, self_delete
 from modules.scanner import scan_subnet
 from modules.anti_analysis import run_anti_analysis_checks
+from modules.discovery import discover_files
+from modules.wizard import encode_wizard
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -111,6 +113,15 @@ def main():
     backdoor_parser.add_argument("--port", type=int, default=5555, help="Port for the backdoor to listen on")
     backdoor_parser.add_argument("--password", required=True, help="Password for the backdoor")
 
+    # Discovery
+    discover_parser = subparsers.add_parser("discover", help="Discover files")
+    discover_parser.add_argument("--type", required=True, choices=['image', 'audio', 'video'], help="Type of file to discover")
+    discover_parser.add_argument("--path", default='.', help="Directory to search in")
+
+    # Wizard
+    wizard_parser = subparsers.add_parser("wizard", help="Run an interactive wizard")
+    wizard_parser.add_argument("--mode", required=True, choices=['encode'], help="Wizard mode to run")
+
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.INFO
@@ -206,6 +217,15 @@ def main():
 
         elif args.command == "backdoor":
             backdoor_listener(args.port, args.password)
+
+        elif args.command == "discover":
+            files = discover_files(args.type, args.path)
+            for f in files:
+                print(f)
+
+        elif args.command == "wizard":
+            if args.mode == 'encode':
+                encode_wizard()
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
