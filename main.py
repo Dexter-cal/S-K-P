@@ -64,6 +64,7 @@ def main():
     encode_parser.add_argument("--morph", action="store_true", help="Morph the payload before encoding")
     encode_parser.add_argument("--polymorphic", action="store_true", help="Generate a polymorphic payload")
     encode_parser.add_argument("--evasive", action="store_true", help="Use IMODE evasion techniques")
+    encode_parser.add_argument("--ekp", metavar="PROFILE_JSON", help="Enable Environment-Keyed Payload using the specified profile")
 
     decode_parser = subparsers.add_parser("decode-image", help="Extract payload from an image")
     decode_parser.add_argument("--input-image", required=True, help="Input image path")
@@ -100,6 +101,7 @@ def main():
     gen_payload_parser.add_argument("--morph", action="store_true", help="Morph the payload")
     gen_payload_parser.add_argument("--polymorphic", action="store_true", help="Generate a polymorphic payload")
     gen_payload_parser.add_argument("--evasive", action="store_true", help="Use IMODE evasion techniques")
+    gen_payload_parser.add_argument("--ekp", metavar="PROFILE_JSON", help="Enable Environment-Keyed Payload using the specified profile")
     gen_payload_parser.add_argument("--output-file", help="File to save the generated payload")
 
     # Detect command
