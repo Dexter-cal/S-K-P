@@ -69,21 +69,13 @@ Sub AutoOpen()
 End Sub
 """
 
-    # To embed a macro, you typically need to use a template file (.dotm)
-    # that already has a VBA project. Creating one from scratch with python-docx
-    # is not directly supported.
-    # For this demonstration, we'll save the macro code to a separate file
-    # and instruct the user on how to add it manually.
-
-    macro_filename = "macro_code.vba"
-    with open(macro_filename, "w") as f:
-        f.write(macro_code)
-
+    # python-docx does not support creating macros.
+    # This function serves as a placeholder for what would be a more
+    # complex implementation, likely involving COM automation on Windows.
     document.save(output_path)
-
     logging.info(f"Word document saved to {output_path}.")
-    logging.warning(f"Macro code saved to {macro_filename}. You will need to manually add this to the Word document's VBA project.")
-    return output_path, macro_filename
+    logging.warning("Macro functionality is not implemented. This is a placeholder.")
+    return output_path, None
 
 import smtplib
 from email.mime.multipart import MIMEMultipart

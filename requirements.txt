@@ -9,3 +9,6 @@ scapy
 argcomplete
 beautifulsoup4
 python-docx
+Flask
+Flask-SocketIO
+python-socketio[client]

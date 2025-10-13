@@ -47,16 +47,16 @@ def main():
             else:
                 print("File not found on remote machine.")
         elif command.startswith("upload "):
-            filepath = command.split(" ", 1)[1]
             try:
+                filepath = command.split(" ", 1)[1]
                 with open(filepath, 'rb') as f:
                     data = f.read()
                 client.send(len(data).to_bytes(4, 'big'))
                 client.sendall(data)
                 response = client.recv(1024)
                 print(encryptor.decrypt(response).decode())
-            except FileNotFoundError:
-                print(f"File not found: {filepath}")
+            except (FileNotFoundError, IndexError):
+                print(f"File not found or invalid command: {command}")
         else:
             response = client.recv(4096)
             if response:

