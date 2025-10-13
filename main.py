@@ -327,15 +327,6 @@ if target_pid:
                 # Detach the guardian process
                 subprocess.Popen([sys.executable, "guardian.py", script_path], close_fds=True)
 
-        elif args.command == "c2-agent":
-            c2_agent(args.url, args.interval)
-
-        elif args.command == "ape-unleash":
-            unleash_ape(args.c2_url, args.subnet)
-
-        elif args.command == "hare-unleash":
-            unleash_hare(args.c2_url, args.subnet)
-
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
         sys.exit(1)

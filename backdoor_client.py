@@ -59,12 +59,13 @@ def main():
                 print(f"File not found: {filepath}")
         else:
             response = client.recv(4096)
-            try:
-                decrypted_response = encryptor.decrypt(response).decode(errors='ignore')
-                print(decrypted_response)
-            except Exception:
-                # If decryption fails, it might be an unencrypted message
-                print(response.decode(errors='ignore'))
+            if response:
+                try:
+                    decrypted_response = encryptor.decrypt(response).decode(errors='ignore')
+                    print(decrypted_response, end='')
+                except Exception:
+                    # If decryption fails, it might be an unencrypted message
+                    print(response.decode(errors='ignore'), end='')
 
     client.close()
 

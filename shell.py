@@ -4,6 +4,7 @@ from modules.target_manager import list_targets, set_target_label, add_target, g
 from modules.scanner import intelligent_scan
 
 from modules.steganography import encode_image, decode_image
+from modules.social_engineering import clone_website, create_macro_doc, send_email
 
 # --- Shell State ---
 current_target = None
@@ -22,7 +23,15 @@ def print_help():
     print("  use <module>      - Select a module (e.g., 'stego/encode')")
     print("  options           - Show options for the current module")
     print("  run               - Execute the current module")
+    print("  lure              - Access the social engineering toolkit")
     print("  exit              - Exit the shell")
+
+def print_lure_help():
+    """Prints the help menu for the lure command."""
+    print("\n--- Social-Engineering Toolkit ---")
+    print("  lure web <url> <payload_url>   - Clone a website and inject a payload")
+    print("  lure doc <path> <payload_cmd>  - Create an infectious Word document")
+    print("  lure email                     - Start the email phishing wizard")
 
 def print_module_options():
     """Prints the options for the currently selected module."""
@@ -74,24 +83,8 @@ def main_loop():
                 if len(args) >= 2:
                     option_name = args[0].lower()
                     option_value = " ".join(args[1:])
-
-                    if current_module:
-                        module_options[option_name] = option_value
-                        print(f"{option_name} => {option_value}")
-                    else:
-                        # Handle global set, like setting a target
-                        if option_name == 'target':
-                            target_id = option_value
-                            target_info = get_target(target_id)
-                            if target_info:
-                                current_target = target_info
-                                ip_for_prompt = [ip for ip, data in list_targets().items() if data == target_info][0]
-                                module_options['rhost'] = ip_for_prompt # Automatically set RHOST
-                                print(f"Current target set to: {ip_for_prompt}")
-                            else:
-                                print(f"Target not found: {target_id}")
-                        else:
-                            print("No module selected. Use 'use <module>' first.")
+                    module_options[option_name] = option_value
+                    print(f"{option_name} => {option_value}")
                 else:
                     print("Usage: set <option_name> <value>")
             elif command == "info":
@@ -147,6 +140,28 @@ def main_loop():
                     print(f"Running stego/encode on {input_path}...")
                     encode_image(input_path, payload, output)
                     print("Module execution finished.")
+            elif command == "lure":
+                if not args:
+                    print_lure_help()
+                    continue
+
+                lure_type = args[0]
+                if lure_type == "web" and len(args) == 3:
+                    clone_website(args[1], args[2])
+                elif lure_type == "doc" and len(args) == 3:
+                    create_macro_doc(args[1], args[2])
+                elif lure_type == "email":
+                    # A simple wizard for sending a phishing email
+                    print("\n--- Email Phishing Wizard ---")
+                    sender = input("Your email: ")
+                    password = input("Your password: ")
+                    recipient = input("Target email: ")
+                    subject = input("Subject: ")
+                    body = input("Body: ")
+                    attachment = input("Attachment path (optional): ")
+                    send_email(sender, password, recipient, subject, body, attachment or None)
+                else:
+                    print_lure_help()
             else:
                 print(f"Unknown command: {command}")
 

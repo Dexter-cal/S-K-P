@@ -7,3 +7,5 @@ requests
 pynput
 scapy
 argcomplete
+beautifulsoup4
+python-docx
