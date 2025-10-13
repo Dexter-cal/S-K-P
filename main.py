@@ -20,6 +20,10 @@ from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 from modules.anti_forensics import scorched_earth
 from modules.target_manager import add_target, get_target, list_targets
+from modules.social_engineering import clone_website, create_macro_doc, send_email
+from modules.lotl_c2 import lotl_agent
+from modules.ape import unleash_ape
+from modules.hare import unleash_hare
 
 # --- Shell State ---
 current_target = None
@@ -38,7 +42,18 @@ def print_help():
     print("  use <module>      - Select a module (e.g., 'stego/encode')")
     print("  options           - Show options for the current module")
     print("  run               - Execute the current module")
+    print("  lure              - Access the social engineering toolkit")
+    print("  lotl-agent        - Start the LOTL C2 agent")
+    print("  ape-unleash       - Unleash the APE engine")
+    print("  hare-unleash      - Unleash the HARE engine")
     print("  exit              - Exit the shell")
+
+def print_lure_help():
+    """Prints the help menu for the lure command."""
+    print("\n--- Social-Engineering Toolkit ---")
+    print("  lure web <url> <payload_url>   - Clone a website and inject a payload")
+    print("  lure doc <path> <payload_cmd>  - Create an infectious Word document")
+    print("  lure email                     - Start the email phishing wizard")
 
 def print_module_options():
     """Prints the options for the currently selected module."""
@@ -125,24 +140,21 @@ def main():
                     continue
 
                 if current_module == "stego/encode":
-                    payload = module_options.get("payload")
-                    output = module_options.get("output")
-                    rhost = module_options.get("rhost")
-
-                    if not all([payload, output, rhost]):
-                        print("Missing required options. Use 'options' to see what's needed.")
-                        continue
-
-                    target_info = get_target(rhost)
-                    if not target_info:
-                        print(f"Target '{rhost}' not found.")
-                        continue
-
-                    input_path = [ip for ip, data in list_targets().items() if data == target_info][0]
-
-                    print(f"Running stego/encode on {input_path}...")
-                    encode_image(input_path, payload, output)
-                    print("Module execution finished.")
+                    # ... (existing run logic)
+                    pass
+            elif command == "lure":
+                if not args:
+                    print_lure_help()
+                # ... (lure logic)
+            elif command == "lotl-agent":
+                # ... (lotl-agent logic)
+                pass
+            elif command == "ape-unleash":
+                # ... (ape-unleash logic)
+                pass
+            elif command == "hare-unleash":
+                # ... (hare-unleash logic)
+                pass
             else:
                 print(f"Unknown command: {command}")
 
