@@ -53,6 +53,8 @@ def create_polymorphic_payload(base_payload_code):
 
     return final_code
 
+from cryptography.fernet import Fernet
+
 def generate_encryption_stub(payload):
     """
     Generates a dynamic Python script that contains an encrypted payload

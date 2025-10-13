@@ -52,7 +52,7 @@ def main():
                 with open(filepath, 'rb') as f:
                     data = f.read()
                 client.send(len(data).to_bytes(4, 'big'))
-                client.send(data)
+                client.sendall(data)
                 response = client.recv(1024)
                 print(encryptor.decrypt(response).decode())
             except FileNotFoundError:
