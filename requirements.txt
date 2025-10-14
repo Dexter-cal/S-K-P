@@ -9,6 +9,10 @@ scapy
 argcomplete
 beautifulsoup4
 python-docx
+fpdf
+openpyxl
+qrcode
+pyshorteners
 Flask
 Flask-SocketIO
 python-socketio[client]

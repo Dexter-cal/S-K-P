@@ -24,6 +24,9 @@ from modules.social_engineering import clone_website, create_macro_doc, send_ema
 from modules.lotl_c2 import lotl_agent
 from modules.ape import unleash_ape
 from modules.hare import unleash_hare
+from modules.iot_scanner import scan_for_iot_devices
+from modules.port_forwarder import start_port_forwarder
+from modules.suggestor import get_suggestion, update_knowledge_base
 
 # --- Shell State ---
 current_target = None
@@ -46,6 +49,9 @@ def print_help():
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
+    print("  scan-iot          - Scan for IoT devices")
+    print("  port-forward      - Forward a local port to a remote host")
+    print("  suggest           - Get a suggestion from the AI engine")
     print("  exit              - Exit the shell")
 
 def print_lure_help():
@@ -155,6 +161,20 @@ def main():
             elif command == "hare-unleash":
                 # ... (hare-unleash logic)
                 pass
+            elif command == "scan-iot":
+                if not args:
+                    print("Usage: scan-iot <subnet>")
+                else:
+                    scan_for_iot_devices(args[0])
+            elif command == "port-forward":
+                if len(args) != 4:
+                    print("Usage: port-forward <listen_host> <listen_port> <forward_host> <forward_port>")
+                else:
+                    threading.Thread(target=start_port_forwarder, args=(args[0], int(args[1]), args[2], int(args[3]))).start()
+            elif command == "suggest":
+                context = {"current_target": current_target["ip"] if current_target else None, "open_ports": current_target["open_ports"] if current_target else []}
+                suggestion = get_suggestion(context)
+                print(f"Suggestion: {suggestion}")
             else:
                 print(f"Unknown command: {command}")
 
