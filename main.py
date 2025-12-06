@@ -28,12 +28,16 @@ from modules.social_engineering import clone_website, create_macro_doc
 from modules.lotl_c2 import lotl_agent
 from modules.ape import unleash_ape
 from modules.hare import unleash_hare
+from modules.mitm import MITM
 
 # --- Shell State ---
 current_target = None
 current_module = None
 module_options = {}
 prompt = "msf-lite > "
+mitm = MITM()
+mitm_target = None
+mitm_gateway = None
 
 def print_help():
     """Prints the main help menu for the shell."""
@@ -48,6 +52,7 @@ def print_help():
     print("  run               - Execute the current module")
     print("  lure              - Access the social engineering toolkit")
     print("  covert            - Use the ARP covert channel")
+    print("  mitm              - Access the ARP poisoning toolkit")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
@@ -64,6 +69,13 @@ def print_covert_help():
     print("\n--- ARP Covert Channel ---")
     print("  covert send <target_ip> <payload> - Send a payload via the ARP covert channel")
     print("  covert listen [timeout]           - Listen for a payload from the ARP covert channel")
+
+def print_mitm_help():
+    """Prints the help menu for the mitm command."""
+    print("\n--- Man-in-the-Middle Toolkit ---")
+    print("  mitm scan <subnet>                - Scan for live hosts on the local network")
+    print("  mitm poison <target_ip> <gateway_ip> - Start ARP poisoning")
+    print("  mitm stop                         - Stop the ARP poisoning attack")
 
 def print_module_options():
     """Prints the options for the currently selected module."""
@@ -128,6 +140,42 @@ def run_covert_command(args):
     else:
         print(f"Unknown covert command: {covert_command}")
         print_covert_help()
+
+def run_mitm_command(args):
+    """Handles the mitm command and its subcommands."""
+    global mitm_target, mitm_gateway
+    if not args:
+        print_mitm_help()
+        return
+
+    mitm_command = args[0]
+    mitm_args = args[1:]
+
+    if mitm_command == "scan":
+        if len(mitm_args) != 1:
+            print("Usage: mitm scan <subnet>")
+            return
+        subnet = mitm_args[0]
+        hosts = mitm.arp_scan(subnet)
+        print("\n--- Live Hosts ---")
+        for host in hosts:
+            print(f"  IP: {host['ip']:<15} MAC: {host['mac']}")
+    elif mitm_command == "poison":
+        if len(mitm_args) != 2:
+            print("Usage: mitm poison <target_ip> <gateway_ip>")
+            return
+        mitm_target, mitm_gateway = mitm_args
+        mitm.start_arp_poisoning(mitm_target, mitm_gateway)
+    elif mitm_command == "stop":
+        if not mitm_target or not mitm_gateway:
+            print("ARP poisoning is not currently active.")
+            return
+        mitm.stop_arp_poisoning(mitm_target, mitm_gateway)
+        mitm_target = None
+        mitm_gateway = None
+    else:
+        print(f"Unknown mitm command: {mitm_command}")
+        print_mitm_help()
 
 def main():
     """The main interactive loop for the shell."""
@@ -221,6 +269,8 @@ def main():
                 run_lure_command(args)
             elif command == "covert":
                 run_covert_command(args)
+            elif command == "mitm":
+                run_mitm_command(args)
             elif command == "lotl-agent":
                 # ... (lotl-agent logic)
                 pass
