@@ -17,3 +17,6 @@ Flask
 Flask-SocketIO
 python-socketio[client]
 psutil
+xlwt
+PyYAML
+piexif

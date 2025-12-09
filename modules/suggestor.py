@@ -20,9 +20,15 @@ def get_suggestions(last_command, targets, current_target):
     # --- Target Selected Suggestions ---
     if current_target:
         suggestions.append("Use 'info' to see detailed information about the current target.")
-        suggestions.append("Use 'lure' to launch a social engineering attack.")
+        suggestions.append("Generate a malicious file for delivery with 'generate_file <type>'.")
         suggestions.append("Use one of the C2 channels to send a command (e.g., 'icmp send <ip> whoami').")
         suggestions.append("Use 'mitm' to perform a man-in-the-middle attack.")
+
+    # --- After Generating a File ---
+    if last_command.startswith("generate_file"):
+        file_type = last_command.split()[1] if len(last_command.split()) > 1 else "file"
+        suggestions.append(f"Learn about this attack with 'explain {file_type}'.")
+        suggestions.append("Deliver the generated file using a C2 channel (e.g., 'covert send_file <ip> <path>').")
 
     # --- Post-C2 Command Suggestions ---
     c2_commands = ["covert send", "icmp send", "github_c2 command", "stego_c2 command"]

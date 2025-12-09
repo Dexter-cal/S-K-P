@@ -41,6 +41,8 @@ from modules import ransomware
 from modules import lotl
 from modules import harvester
 from modules import recon
+from modules import file_generator
+from modules import explainer
 
 # --- Shell State ---
 github_c2_instance = None
@@ -76,6 +78,8 @@ def print_help():
     print("  ransom            - Run a ransomware simulation")
     print("  lotl              - Generate a Living Off The Land implant")
     print("  recon             - Run a deep reconnaissance scan on a target")
+    print("  generate_file     - Generate a malicious file for testing")
+    print("  explain           - Explain a file-based attack")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
     print("  exit              - Exit the shell")
@@ -106,6 +110,18 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_generate_file_help():
+    """Prints the help menu for the generate_file command."""
+    print("\n--- Malicious File Generator ---")
+    print("Usage: generate_file <type> [output_dir]")
+    print("\nAvailable types: all, xxe, zip_bomb, csv_injection, pickle, eicar, etc.")
+
+def print_explain_help():
+    """Prints the help menu for the explain command."""
+    print("\n--- Attack Explainer ---")
+    print("Usage: explain <type>")
+    print("\nAvailable types: xxe, billion_laughs, zip_traversal, csv_injection, pickle_deserialization, eicar")
 
 def print_recon_help():
     """Prints the help menu for the recon command."""
@@ -300,6 +316,52 @@ def run_generate_command(args):
         print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
+
+def run_generate_file_command(args):
+    """Handles the generate_file command."""
+    if not args:
+        print_generate_file_help()
+        return
+
+    file_type = args[0]
+    output_dir = args[1] if len(args) > 1 else "test_files"
+
+    gen = file_generator.SecurityTestFileGenerator(output_dir)
+
+    generators = {
+        "all": gen.generate_all, "xxe": gen.generate_xxe_file, "xxe_dtd": gen.generate_xxe_dtd,
+        "billion_laughs": gen.generate_billion_laughs, "quadratic_blowup": gen.generate_quadratic_blowup,
+        "zip_traversal": gen.generate_zip_traversal, "zip_bomb": gen.generate_zip_bomb,
+        "zip_symlink": gen.generate_zip_symlink, "tar_traversal": gen.generate_tar_traversal,
+        "gzip_bomb": gen.generate_gzip_bomb, "bzip2_bomb": gen.generate_bzip2_bomb,
+        "csv_injection": gen.generate_csv_injection, "dde": gen.generate_dde_payload,
+        "sql_injection": gen.generate_sql_injection_file, "xss": gen.generate_xss_file,
+        "gifar": gen.generate_gifar, "pdf_zip": gen.generate_pdf_zip_polyglot,
+        "svg": gen.generate_malicious_svg, "pdf_js": gen.generate_pdf_with_js,
+        "docx": gen.generate_malicious_docx, "xls": gen.generate_malicious_xls,
+        "pickle": gen.generate_pickle_payload, "yaml": gen.generate_yaml_payload,
+        "json": gen.generate_json_deserialization, "image_meta": gen.generate_image_with_metadata,
+        "double_ext": gen.generate_double_extension, "null_byte": gen.generate_null_byte_file,
+        "unicode": gen.generate_unicode_confusables, "long_name": gen.generate_long_filename,
+        "eicar": gen.generate_eicar_test, "nested_zip": gen.generate_zip_of_zips,
+        "large_file": gen.generate_billion_bytes,
+    }
+
+    if file_type in generators:
+        generators[file_type]()
+    else:
+        print(f"Error: Unknown file type '{file_type}'.")
+        print_generate_file_help()
+
+def run_explain_command(args):
+    """Handles the explain command."""
+    if not args:
+        print_explain_help()
+        return
+
+    attack_type = args[0]
+    explanation = explainer.get_explanation(attack_type)
+    print(explanation)
 
 def run_recon_command(args):
     """Handles the recon command and its subcommands."""
@@ -701,6 +763,10 @@ def process_command(cmd_line):
         run_lotl_command(args)
     elif command == "recon":
         run_recon_command(args)
+    elif command == "generate_file":
+        run_generate_file_command(args)
+    elif command == "explain":
+        run_explain_command(args)
     elif command == "ape-unleash":
         # ... (ape-unleash logic)
         pass
