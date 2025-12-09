@@ -28,6 +28,12 @@ def get_suggestions(last_command, targets, current_target):
     if any(last_command.startswith(cmd) for cmd in c2_commands):
         suggestions.append("Consider establishing persistence with 'persist <os> <implant_path>'.")
 
+    # --- After Starting C2 Server ---
+    if last_command in ["stego_c2 start"]:
+        suggestions.append("Now that the C2 server is running, generate an implant.")
+        suggestions.append("For a fileless implant, use 'lotl <os> <c2_url>'.")
+        suggestions.append("For a file-based implant, use 'stego_c2 generate <path>'.")
+
     # --- General Suggestions ---
     if not current_target and targets:
         suggestions.append(f"Select a target with 'set {list(targets.keys())[0]}' to see more options.")

