@@ -37,6 +37,7 @@ def get_suggestions(last_command, targets, current_target):
         if target_ip and targets.get(target_ip) and targets[target_ip].get('recon'):
             exploit_suggestions = get_exploit_suggestions(targets[target_ip]['recon'])
             if exploit_suggestions:
+                suggestions.insert(0, f"Vulnerabilities found! Try the APE engine with 'ape unleash {target_ip}'.")
                 suggestions.extend(exploit_suggestions)
 
     # --- After Generating a File ---

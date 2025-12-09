@@ -32,6 +32,7 @@ from modules.ape import unleash_ape
 from modules.hare import unleash_hare
 from modules.mitm import MITM
 from modules.icmp_tunnel import send_icmp_command, icmp_c2_listener
+from modules.ape import APE
 from modules.suggestor import get_suggestions
 from modules import stego_c2
 from modules.github_c2 import GitHubC2
@@ -82,7 +83,7 @@ def print_help():
     print("  generate_file     - Generate a malicious file for testing")
     print("  explain           - Explain a file-based attack")
     print("  morph             - Apply polymorphism to a Python implant")
-    print("  ape-unleash       - Unleash the APE engine")
+    print("  ape               - Unleash the Automated Persistent Exploitation engine")
     print("  hare-unleash      - Unleash the HARE engine")
     print("  exit              - Exit the shell")
 
@@ -123,6 +124,11 @@ def print_generate_file_help():
     print("\n--- Malicious File Generator ---")
     print("Usage: generate_file <type> [output_dir]")
     print("\nAvailable types: all, xxe, zip_bomb, csv_injection, pickle, eicar, etc.")
+
+def print_ape_help():
+    """Prints the help menu for the ape command."""
+    print("\n--- Automated Persistent Exploitation (APE) Engine ---")
+    print("Usage: ape unleash <target_ip>")
 
 def print_explain_help():
     """Prints the help menu for the explain command."""
@@ -278,14 +284,17 @@ def run_covert_command(args):
             print(payload.decode(errors='ignore'))
     elif covert_command == "generate_listener":
         if len(covert_args) != 1:
-            print("Usage: covert generate_listener <output_path>")
+            print("Usage: covert generate_listener <output_directory>")
             return
-        output_path = covert_args[0]
+        output_dir = covert_args[0]
         try:
-            shutil.copyfile("covert_listener.py", output_path)
-            print(f"Listener script generated at {output_path}")
+            # Create a self-contained package for the listener
+            os.makedirs(output_dir, exist_ok=True)
+            shutil.copyfile("covert_listener.py", os.path.join(output_dir, "covert_listener.py"))
+            shutil.copytree("modules", os.path.join(output_dir, "modules"))
+            print(f"Listener package generated at {output_dir}. Run the listener from within that directory.")
         except Exception as e:
-            print(f"Error generating listener: {e}")
+            print(f"Error generating listener package: {e}")
     else:
         print(f"Unknown covert command: {covert_command}")
         print_covert_help()
@@ -382,6 +391,18 @@ def run_generate_file_command(args):
     else:
         print(f"Error: Unknown file type '{file_type}'.")
         print_generate_file_help()
+
+def run_ape_command(args):
+    """Handles the ape command and its subcommands."""
+    if not args or args[0] != "unleash" or len(args) != 2:
+        print_ape_help()
+        return
+
+    target_ip = args[1]
+
+    # The APE engine needs to be able to call back into the shell's command processor
+    ape_engine = APE(process_command)
+    ape_engine.unleash(target_ip)
 
 def run_explain_command(args):
     """Handles the explain command."""
@@ -802,9 +823,8 @@ def process_command(cmd_line):
         run_explain_command(args)
     elif command == "morph":
         run_morph_command(args)
-    elif command == "ape-unleash":
-        # ... (ape-unleash logic)
-        pass
+    elif command == "ape":
+        run_ape_command(args)
     elif command == "hare-unleash":
         # ... (hare-unleash logic)
         pass

@@ -1,76 +1,47 @@
 import logging
-import time
-import os
-from modules.scanner import intelligent_scan
-from modules.discovery import discover_files
-# from modules.ace import ace_exfiltrate # This will be re-implemented later
+from modules.target_manager import get_target
+from modules.exploit_suggester import get_exploit_commands
 
-# A list of simulated "vulnerabilities" the APE can "exploit"
-SIMULATED_VULNERABILITIES = {
-    445: "EternalBlue (Simulated)", # SMB
-    21: "Anonymous FTP Write (Simulated)",
-}
+class APE:
+    def __init__(self, process_command_func):
+        self.process_command = process_command_func
 
-class ApeAgent:
-    def __init__(self, c2_url, initial_subnet="192.168.1."):
-        self.c2_url = c2_url
-        self.subnet = initial_subnet
-        self.compromised_hosts = set()
-        self.exfiltrated_files = set()
-        logging.info("APE Agent Initialized.")
+    def unleash(self, target_ip):
+        """
+        Unleashes the Automated Persistent Exploitation engine on a target.
+        """
+        logging.info(f"Unleashing APE on {target_ip}...")
 
-    def scan_and_profile(self):
-        """Scans the network to find potential targets."""
-        logging.info("APE: Scanning network for new targets...")
-        targets = intelligent_scan(self.subnet)
-        new_targets = [t for t in targets if t['ip'] not in self.compromised_hosts]
-        logging.info(f"APE: Found {len(new_targets)} new potential targets.")
-        return new_targets
+        target_data = get_target(target_ip)
+        if not target_data:
+            print(f"Error: Target {target_ip} not found.")
+            return
 
-    def propagate(self, target):
-        """Attempts to propagate to a new target."""
-        logging.info(f"APE: Attempting to propagate to {target['ip']}...")
-        for port in target['open_ports']:
-            if port in SIMULATED_VULNERABILITIES:
-                exploit = SIMULATED_VULNERABILITIES[port]
-                logging.info(f"APE: Found potential vulnerability '{exploit}' on port {port}. Simulating exploit...")
-                logging.info(f"APE: Propagation to {target['ip']} successful!")
-                self.compromised_hosts.add(target['ip'])
-                return True
-        logging.info(f"APE: No known vulnerabilities found on {target['ip']}. Cannot propagate.")
-        return False
+        if 'recon' not in target_data or not target_data['recon']:
+            print("Error: No reconnaissance data found for this target. Run 'recon' first.")
+            return
 
-    def hunt_and_exfiltrate(self, host_ip):
-        """Hunts for valuable files on a compromised host and exfiltrates them."""
-        logging.info(f"APE: Hunting for valuable files on {host_ip}...")
-        valuable_files = discover_files('image', '.')
-        valuable_files.extend(discover_files('audio', '.'))
+        vulnerabilities = []
+        for port in target_data['recon'].get('ports', []):
+            if 'vulnerabilities' in port:
+                for vuln in port['vulnerabilities']:
+                    vulnerabilities.append(vuln.split(' ')[0])
 
-        for f in valuable_files:
-            if f not in self.exfiltrated_files:
-                logging.info(f"APE: Found new file: {f}. Exfiltrating...")
-                try:
-                    with open(f, 'rb') as file_data:
-                        # ace_exfiltrate(file_data.read(), self.c2_url) # Placeholder
-                        pass
-                    self.exfiltrated_files.add(f)
-                    logging.info(f"APE: Successfully exfiltrated {f}.")
-                except Exception as e:
-                    logging.error(f"APE: Failed to exfiltrate {f}: {e}")
+        if not vulnerabilities:
+            print("No known vulnerabilities found for this target.")
+            return
 
-    def run(self):
-        """The main loop for the APE agent."""
-        logging.info("--- APE Engine Unleashed ---")
-        while True:
-            targets = self.scan_and_profile()
-            for target in targets:
-                if self.propagate(target):
-                    self.hunt_and_exfiltrate(target['ip'])
+        print(f"Found {len(vulnerabilities)} potential vulnerabilities. Attempting to exploit...")
 
-            logging.info("APE: Cycle complete. Sleeping for 60 seconds...")
-            time.sleep(60)
-
-def unleash_ape(c2_url, subnet):
-    """Entry point to start the APE engine."""
-    agent = ApeAgent(c2_url, subnet)
-    agent.run()
+        for cve in vulnerabilities:
+            commands = get_exploit_commands(cve)
+            if commands:
+                print(f"\n--- Attempting to exploit {cve} ---")
+                for command_template in commands:
+                    command = command_template.replace("{TARGET_IP}", target_ip)
+                    print(f"Executing: {command}")
+                    # Use the main shell's command processor to execute the command
+                    self.process_command(command)
+                print("------------------------------------")
+            else:
+                print(f"No automated exploit available for {cve}.")

