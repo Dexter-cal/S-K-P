@@ -14,6 +14,7 @@ def get_suggestions(last_command, targets, current_target):
     # --- Post-Scan Suggestions ---
     if last_command.startswith("scan") and targets:
         suggestions.append("Use 'targets' to view the discovered hosts.")
+        suggestions.append(f"Run a deep reconnaissance scan with 'recon {list(targets.keys())[0]}'.")
         suggestions.append(f"Select a target with 'set {list(targets.keys())[0]}' to see more options.")
 
     # --- Target Selected Suggestions ---

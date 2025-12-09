@@ -40,6 +40,7 @@ import qrcode
 from modules import ransomware
 from modules import lotl
 from modules import harvester
+from modules import recon
 
 # --- Shell State ---
 github_c2_instance = None
@@ -74,6 +75,7 @@ def print_help():
     print("  qrcode            - Generate a QR code for payload delivery")
     print("  ransom            - Run a ransomware simulation")
     print("  lotl              - Generate a Living Off The Land implant")
+    print("  recon             - Run a deep reconnaissance scan on a target")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
     print("  exit              - Exit the shell")
@@ -104,6 +106,11 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_recon_help():
+    """Prints the help menu for the recon command."""
+    print("\n--- Deep Reconnaissance Scanner (Nmap) ---")
+    print("Usage: recon <target_ip>")
 
 def print_lotl_help():
     """Prints the help menu for the lotl command."""
@@ -293,6 +300,31 @@ def run_generate_command(args):
         print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
+
+def run_recon_command(args):
+    """Handles the recon command and its subcommands."""
+    if len(args) != 1:
+        print_recon_help()
+        return
+
+    target_ip = args[0]
+
+    results = recon.run_nmap_scan(target_ip)
+
+    if results:
+        print(f"\n--- Reconnaissance Report for {target_ip} ---")
+        print(f"  OS Guess: {results['os']}")
+        print("\n  Open Ports:")
+        for port in results['ports']:
+            print(f"    - Port {port['port']}/{port['protocol']}:")
+            print(f"      Service: {port['service']}")
+            print(f"      Product: {port.get('product', 'N/A')}")
+            print(f"      Version: {port.get('version', 'N/A')}")
+            if 'vulnerabilities' in port:
+                print("      Vulnerabilities:")
+                for vuln in port['vulnerabilities']:
+                    print(f"        - {vuln}")
+        print("---------------------------------")
 
 def run_lotl_command(args):
     """Handles the lotl command and its subcommands."""
@@ -667,6 +699,8 @@ def process_command(cmd_line):
         run_ransom_command(args)
     elif command == "lotl":
         run_lotl_command(args)
+    elif command == "recon":
+        run_recon_command(args)
     elif command == "ape-unleash":
         # ... (ape-unleash logic)
         pass
