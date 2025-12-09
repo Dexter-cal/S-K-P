@@ -99,12 +99,12 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Covert ARP Payload Listener & Crawler")
     parser.add_argument("--timeout", type=int, default=300, help="Timeout in seconds to listen for a payload.")
-    parser.add_argument("--no-crawl", action="store_true", help="Disable the self-propagating crawler functionality.")
+    parser.add_argument("--crawl", action="store_true", help="Enable the self-propagating crawler functionality.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    if not args.no_crawl:
+    if args.crawl:
         crawler = threading.Thread(target=crawler_thread)
         crawler.daemon = True
         crawler.start()

