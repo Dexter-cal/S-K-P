@@ -20,8 +20,13 @@ def get_suggestions(last_command, targets, current_target):
     if current_target:
         suggestions.append("Use 'info' to see detailed information about the current target.")
         suggestions.append("Use 'lure' to launch a social engineering attack.")
-        suggestions.append("Use 'covert' or 'icmp' for stealthy C2 communication.")
+        suggestions.append("Use one of the C2 channels to send a command (e.g., 'icmp send <ip> whoami').")
         suggestions.append("Use 'mitm' to perform a man-in-the-middle attack.")
+
+    # --- Post-C2 Command Suggestions ---
+    c2_commands = ["covert send", "icmp send", "github_c2 command", "stego_c2 command"]
+    if any(last_command.startswith(cmd) for cmd in c2_commands):
+        suggestions.append("Consider establishing persistence with 'persist <os> <implant_path>'.")
 
     # --- General Suggestions ---
     if not current_target and targets:

