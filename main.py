@@ -28,6 +28,7 @@ from modules.social_engineering import clone_website, create_macro_doc
 from modules.lotl_c2 import lotl_agent
 from modules.ape import unleash_ape
 from modules.hare import unleash_hare
+from c2_operator import c2_shell
 
 # --- Shell State ---
 current_target = None
@@ -46,6 +47,7 @@ def print_help():
     print("  use <module>      - Select a module (e.g., 'stego/encode')")
     print("  options           - Show options for the current module")
     print("  run               - Execute the current module")
+    print("  c2                - Enter the C2 operator console")
     print("  lure              - Access the social engineering toolkit")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
@@ -174,6 +176,8 @@ def main():
             elif command == "hare-unleash":
                 # ... (hare-unleash logic)
                 pass
+            elif command == "c2":
+                c2_shell()
             else:
                 print(f"Unknown command: {command}")
 
