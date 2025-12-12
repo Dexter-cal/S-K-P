@@ -32,7 +32,6 @@ from modules.osint.database import initialize_database
 from modules.osint.media_processor import process_image, process_document
 import sqlite3
 from modules.osint.database import DB_FILE
-from modules.osint.attack_suggestor import suggest_attacks
 
 # --- Shell State ---
 current_target = None
@@ -247,7 +246,7 @@ def handle_osint(args):
 
             target_id = target_row[0]
             file_type = "image" if file_path.lower().endswith(('.png', '.jpg', '.jpeg')) else "document"
-            metadata = process_image(file_path) if file_type == "image" else {}
+            metadata = process_image(file_path) if file_type == "image" else process_document(file_path)
 
             cursor.execute("INSERT INTO media (target_id, file_path, type) VALUES (?, ?, ?)",
                            (target_id, file_path, file_type))
@@ -270,14 +269,64 @@ def handle_osint(args):
             return
 
         target_name = osint_args[0]
-        suggestions = suggest_attacks(target_name)
-        if suggestions:
-            print(f"\n--- Attack Suggestions for {target_name} ---")
-            for s in suggestions:
-                print(f"  - {s}")
-            print("\n")
-        else:
-            print("No suggestions available for this target.")
+        from modules.osint.ai_analyzer import analyze_with_ai
+
+        # --- Data Aggregation for AI ---
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        target_data = {}
+        try:
+            cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
+            target_row = cursor.fetchone()
+            if not target_row:
+                logger.error(f"Target '{target_name}' not found.")
+                return
+
+            target_id = target_row[0]
+
+            # Get all metadata
+            cursor.execute("""
+                SELECT m.key, m.value FROM metadata m
+                JOIN media ON m.media_id = media.id
+                WHERE media.target_id = ?
+            """, (target_id,))
+            target_data["metadata"] = cursor.fetchall()
+
+            # Get face count
+            cursor.execute("SELECT COUNT(id) FROM faces WHERE target_id = ?", (target_id,))
+            target_data["face_count"] = cursor.fetchone()[0]
+
+        except sqlite3.Error as e:
+            logger.error(f"Database error while aggregating data for AI: {e}")
+            return
+        finally:
+            if conn:
+                conn.close()
+
+        # --- AI Analysis ---
+        suggestions = analyze_with_ai(target_data)
+        print(f"\n--- AI-Powered Attack Suggestions for {target_name} ---")
+        for s in suggestions:
+            print(f"  - {s}")
+        print("\n")
+
+    elif subcommand == "process-faces":
+        if len(osint_args) != 1:
+            print("Usage: osint process-faces <target>")
+            return
+
+        target_name = osint_args[0]
+        from modules.osint.facial_recognition import process_faces
+        process_faces(target_name)
+
+    elif subcommand == "export-report":
+        if len(osint_args) != 1:
+            print("Usage: osint export-report <target>")
+            return
+
+        target_name = osint_args[0]
+        from modules.osint.reporting import generate_report
+        generate_report(target_name)
 
     else:
         print(f"Unknown osint command: {subcommand}")
@@ -289,6 +338,8 @@ def print_osint_help():
     print("  osint add-target <name> [-d <description>] - Add a new target")
     print("  osint add-media <target> <path>          - Add a media file to a target")
     print("  osint suggest-attacks <target>           - Suggest attack vectors for a target")
+    print("  osint process-faces <target>             - Process media for facial recognition")
+    print("  osint export-report <target>             - Generate an HTML report for a target")
 
 if __name__ == "__main__":
     initialize_database() # Ensure the OSINT DB is ready

@@ -21,7 +21,20 @@ def process_image(file_path):
     return metadata
 
 def process_document(file_path):
-    """Processes a document file to extract metadata."""
-    # This will be implemented in a future step.
-    logger.info("Document processing is not yet implemented.")
-    return {}
+    """Processes a PDF document file to extract metadata."""
+    metadata = {}
+    try:
+        from PyPDF2 import PdfFileReader
+        with open(file_path, 'rb') as f:
+            reader = PdfFileReader(f)
+            doc_info = reader.getDocumentInfo()
+            if doc_info:
+                for key, value in doc_info.items():
+                    # Key is like '/Title', so we clean it up
+                    clean_key = key[1:]
+                    metadata[clean_key] = str(value)
+                logger.info(f"Extracted {len(metadata)} metadata fields from {file_path}")
+    except Exception as e:
+        logger.error(f"Could not process PDF {file_path}: {e}")
+
+    return metadata

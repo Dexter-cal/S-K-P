@@ -1,9 +1,12 @@
 argcomplete
 beautifulsoup4
 cryptography
+face_recognition
 Flask
 Flask-SocketIO
+folium
 fpdf
+google-generativeai
 numpy
 opencv-python
 openpyxl

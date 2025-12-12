@@ -46,6 +46,27 @@ def initialize_database():
             );
         """)
 
+        # --- Faces Table ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS faces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_id INTEGER,
+                name TEXT, -- Optional name for a known person
+                FOREIGN KEY (target_id) REFERENCES targets (id)
+            );
+        """)
+
+        # --- Face-Media Junction Table ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS face_media (
+                face_id INTEGER,
+                media_id INTEGER,
+                PRIMARY KEY (face_id, media_id),
+                FOREIGN KEY (face_id) REFERENCES faces (id),
+                FOREIGN KEY (media_id) REFERENCES media (id)
+            );
+        """)
+
         conn.commit()
         logger.info("OSINT database initialized successfully.")
     except sqlite3.Error as e:
