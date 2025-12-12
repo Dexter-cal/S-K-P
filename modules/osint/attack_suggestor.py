@@ -1,6 +1,6 @@
 import sqlite3
 import logging
-from ..database import DB_FILE
+from .database import DB_FILE
 
 logger = logging.getLogger(__name__)
 

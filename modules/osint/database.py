@@ -47,7 +47,7 @@ def initialize_database():
         """)
 
         conn.commit()
-        logger.info("Database initialized successfully.")
+        logger.info("OSINT database initialized successfully.")
     except sqlite3.Error as e:
         logger.error(f"Database error: {e}")
     finally:
