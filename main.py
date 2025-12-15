@@ -32,6 +32,10 @@ from modules.osint.database import initialize_database
 from modules.osint.media_processor import process_image, process_document
 import sqlite3
 from modules.osint.database import DB_FILE
+from modules.osint.attack_suggestor import suggest_attacks
+from modules.osint.facial_recognition import process_faces
+from modules.osint.reporting import generate_report
+from modules.osint.ai_analyzer import analyze_with_ai
 
 # --- Shell State ---
 current_target = None
@@ -190,61 +194,79 @@ def main():
             logging.error(f"An error occurred in the shell: {e}")
 
 def handle_osint(args):
-    """Handles the 'osint' command and its subcommands."""
-    if not args:
-        print_osint_help()
+    """Handles the 'osint' command and its subcommands using argparse."""
+    parser = argparse.ArgumentParser(description="OSINT Profiler", prog="osint")
+    subparsers = parser.add_subparsers(dest="subcommand", help="Available commands")
+
+    # create-folder
+    parser_folder = subparsers.add_parser("create-folder", help="Create a new folder for targets")
+    parser_folder.add_argument("name", help="The name of the folder")
+
+    # add-target
+    parser_target = subparsers.add_parser("add-target", help="Add a new target")
+    parser_target.add_argument("name", help="The name of the target")
+    parser_target.add_argument("-d", "--description", help="A description for the target")
+    parser_target.add_argument("-f", "--folder", help="The folder to add the target to")
+
+    # add-media
+    parser_media = subparsers.add_parser("add-media", help="Add a media file to a target")
+    parser_media.add_argument("target", help="The name of the target")
+    parser_media.add_argument("path", help="The path to the media file")
+
+    # suggest-attacks
+    parser_suggest = subparsers.add_parser("suggest-attacks", help="Suggest attack vectors for a target")
+    parser_suggest.add_argument("target", help="The name of the target")
+
+    # process-faces
+    parser_faces = subparsers.add_parser("process-faces", help="Process media for facial recognition")
+    parser_faces.add_argument("target", help="The name of the target")
+
+    # export-report
+    parser_report = subparsers.add_parser("export-report", help="Generate an HTML report for a target")
+    parser_report.add_argument("target", help="The name of the target")
+
+    try:
+        parsed_args = parser.parse_args(args)
+        if not parsed_args.subcommand:
+            parser.print_help()
+            return
+    except SystemExit:
+        # argparse throws SystemExit on --help or error, so we catch it to prevent the shell from exiting
         return
 
-    subcommand = args[0]
-    osint_args = args[1:]
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
 
-    if subcommand == "add-target":
-        if len(osint_args) < 1:
-            print("Usage: osint add-target <name> [-d <description>]")
-            return
-        # A simple argparse simulation for subcommands
-        target_name = osint_args[0]
-        description = None
-        if "-d" in osint_args:
-            try:
-                desc_index = osint_args.index("-d") + 1
-                description = osint_args[desc_index]
-            except (ValueError, IndexError):
-                print("Invalid description for target.")
-                return
-
-        try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO targets (name, description) VALUES (?, ?)", (target_name, description))
+    try:
+        if parsed_args.subcommand == "create-folder":
+            cursor.execute("INSERT INTO folders (name) VALUES (?)", (parsed_args.name,))
             conn.commit()
-            logger.info(f"Target '{target_name}' added successfully.")
-        except sqlite3.IntegrityError:
-            logger.error(f"Target '{target_name}' already exists.")
-        except sqlite3.Error as e:
-            logger.error(f"Database error: {e}")
-        finally:
-            if conn:
-                conn.close()
+            logger.info(f"Folder '{parsed_args.name}' created successfully.")
 
-    elif subcommand == "add-media":
-        if len(osint_args) != 2:
-            print("Usage: osint add-media <target> <path>")
-            return
+        elif parsed_args.subcommand == "add-target":
+            folder_id = None
+            if parsed_args.folder:
+                cursor.execute("SELECT id FROM folders WHERE name = ?", (parsed_args.folder,))
+                folder_row = cursor.fetchone()
+                if not folder_row:
+                    logger.error(f"Folder '{parsed_args.folder}' not found.")
+                    return
+                folder_id = folder_row[0]
 
-        target_name, file_path = osint_args
-        # This logic is simplified; a real implementation would be more robust.
-        # It replicates the logic from the standalone CLI version.
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
+            cursor.execute("INSERT INTO targets (name, description, folder_id) VALUES (?, ?, ?)",
+                           (parsed_args.name, parsed_args.description, folder_id))
+            conn.commit()
+            logger.info(f"Target '{parsed_args.name}' added successfully.")
+
+        elif parsed_args.subcommand == "add-media":
+            cursor.execute("SELECT id FROM targets WHERE name = ?", (parsed_args.target,))
             target_row = cursor.fetchone()
             if not target_row:
-                logger.error(f"Target '{target_name}' not found.")
+                logger.error(f"Target '{parsed_args.target}' not found.")
                 return
 
             target_id = target_row[0]
+            file_path = parsed_args.path
             file_type = "image" if file_path.lower().endswith(('.png', '.jpg', '.jpeg')) else "document"
             metadata = process_image(file_path) if file_type == "image" else process_document(file_path)
 
@@ -256,26 +278,11 @@ def handle_osint(args):
                 cursor.execute("INSERT INTO metadata (media_id, key, value) VALUES (?, ?, ?)",
                                (media_id, key, value))
             conn.commit()
-            logger.info(f"Media '{file_path}' added to target '{target_name}'.")
-        except sqlite3.Error as e:
-            logger.error(f"Database error: {e}")
-        finally:
-            if conn:
-                conn.close()
+            logger.info(f"Media '{file_path}' added to target '{parsed_args.target}'.")
 
-    elif subcommand == "suggest-attacks":
-        if len(osint_args) != 1:
-            print("Usage: osint suggest-attacks <target>")
-            return
-
-        target_name = osint_args[0]
-        from modules.osint.ai_analyzer import analyze_with_ai
-
-        # --- Data Aggregation for AI ---
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        target_data = {}
-        try:
+        elif parsed_args.subcommand == "suggest-attacks":
+            target_name = parsed_args.target
+            target_data = {}
             cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
             target_row = cursor.fetchone()
             if not target_row:
@@ -284,63 +291,37 @@ def handle_osint(args):
 
             target_id = target_row[0]
 
-            # Get all metadata
-            cursor.execute("""
-                SELECT m.key, m.value FROM metadata m
-                JOIN media ON m.media_id = media.id
-                WHERE media.target_id = ?
-            """, (target_id,))
-            target_data["metadata"] = cursor.fetchall()
+            cursor.execute("SELECT m.key, m.value FROM metadata m JOIN media ON m.media_id = media.id WHERE media.target_id = ?", (target_id,))
+            metadata_rows = cursor.fetchall()
+            target_data["metadata"] = [f"{key}: {value}" for key, value in metadata_rows]
 
-            # Get face count
             cursor.execute("SELECT COUNT(id) FROM faces WHERE target_id = ?", (target_id,))
-            target_data["face_count"] = cursor.fetchone()[0]
+            face_count = cursor.fetchone()[0]
+            target_data["face_count"] = face_count
 
-        except sqlite3.Error as e:
-            logger.error(f"Database error while aggregating data for AI: {e}")
-            return
-        finally:
-            if conn:
-                conn.close()
+            suggestions = analyze_with_ai(target_data)
+            print(f"\n--- AI-Powered Attack Suggestions for {target_name} ---")
+            if suggestions:
+                for s in suggestions:
+                    print(f"  - {s}")
+            else:
+                print("  Could not generate suggestions. Check API key and data.")
+            print("\n")
 
-        # --- AI Analysis ---
-        suggestions = analyze_with_ai(target_data)
-        print(f"\n--- AI-Powered Attack Suggestions for {target_name} ---")
-        for s in suggestions:
-            print(f"  - {s}")
-        print("\n")
+        elif parsed_args.subcommand == "process-faces":
+            process_faces(parsed_args.target, conn)
 
-    elif subcommand == "process-faces":
-        if len(osint_args) != 1:
-            print("Usage: osint process-faces <target>")
-            return
+        elif parsed_args.subcommand == "export-report":
+            generate_report(parsed_args.target, conn)
 
-        target_name = osint_args[0]
-        from modules.osint.facial_recognition import process_faces
-        process_faces(target_name)
-
-    elif subcommand == "export-report":
-        if len(osint_args) != 1:
-            print("Usage: osint export-report <target>")
-            return
-
-        target_name = osint_args[0]
-        from modules.osint.reporting import generate_report
-        generate_report(target_name)
-
-    else:
-        print(f"Unknown osint command: {subcommand}")
-        print_osint_help()
-
-def print_osint_help():
-    """Prints the help menu for the OSINT profiler."""
-    print("\n--- OSINT Profiler Commands ---")
-    print("  osint add-target <name> [-d <description>] - Add a new target")
-    print("  osint add-media <target> <path>          - Add a media file to a target")
-    print("  osint suggest-attacks <target>           - Suggest attack vectors for a target")
-    print("  osint process-faces <target>             - Process media for facial recognition")
-    print("  osint export-report <target>             - Generate an HTML report for a target")
+    except sqlite3.IntegrityError as e:
+        logger.error(f"Database integrity error: {e}")
+    except sqlite3.Error as e:
+        logger.error(f"Database error in command '{parsed_args.subcommand}': {e}")
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == "__main__":
-    initialize_database() # Ensure the OSINT DB is ready
+    initialize_database()
     main()

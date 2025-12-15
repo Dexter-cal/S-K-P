@@ -15,12 +15,22 @@ def initialize_database():
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
 
+        # --- Folders Table ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            );
+        """)
+
         # --- Targets Table ---
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS targets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
-                description TEXT
+                description TEXT,
+                folder_id INTEGER,
+                FOREIGN KEY (folder_id) REFERENCES folders (id)
             );
         """)
 

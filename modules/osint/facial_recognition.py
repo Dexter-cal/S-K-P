@@ -1,13 +1,12 @@
 import face_recognition
 import sqlite3
 import logging
-from ..database import DB_FILE
+from .database import DB_FILE
 
 logger = logging.getLogger(__name__)
 
-def process_faces(target_name):
+def process_faces(target_name, conn):
     """Processes all media for a target to find and cluster faces."""
-    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
     try:
@@ -56,6 +55,3 @@ def process_faces(target_name):
 
     except sqlite3.Error as e:
         logger.error(f"Database error during facial recognition: {e}")
-    finally:
-        if conn:
-            conn.close()
