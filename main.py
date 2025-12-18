@@ -38,6 +38,7 @@ from modules.osint.reporting import generate_report
 from modules.osint.ai_analyzer import analyze_with_ai
 from modules.ransomware import run_simulation as run_ransomware_simulation
 import qrcode
+from modules.exploit_suggester import suggest_exploits
 
 # --- Shell State ---
 current_target = None
@@ -53,12 +54,14 @@ def print_help():
     print("  set <ip/label>    - Set the current target")
     print("  info              - Show information about the current target")
     print("  scan <subnet>     - Run an intelligent scan")
+    print("  suggest           - Suggest exploits for the current target")
     print("  use <module>      - Select a module (e.g., 'stego/encode')")
     print("  options           - Show options for the current module")
     print("  run               - Execute the current module")
     print("  osint             - Access the OSINT profiler")
     print("  ransom            - Access the ransomware simulator")
     print("  qrcode            - Generate a QR code for a URL")
+    print("  polyglot          - Create a polyglot file (e.g., ZIP/SH)")
     print("  lure              - Access the social engineering toolkit")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
@@ -202,6 +205,25 @@ def main():
                         print(f"QR code saved to {output_file}")
                     except Exception as e:
                         print(f"Error generating QR code: {e}")
+            elif command == "polyglot":
+                if len(args) < 3:
+                    print("Usage: polyglot <output_file> '<command>' <file1> [<file2>...]")
+                else:
+                    output_file = args[0]
+                    command_to_embed = args[1]
+                    files_to_zip = args[2:]
+                    create_polyglot(output_file, files_to_zip, command_to_embed)
+            elif command == "suggest":
+                if not current_target:
+                    print("No target selected. Use 'set <ip/label>' to select a target first.")
+                else:
+                    print(f"Generating suggestions for target...")
+                    target_obj = get_target(current_target)
+                    suggestions = suggest_exploits(target_obj)
+                    print("\n--- Exploit Suggestions ---")
+                    for suggestion in suggestions:
+                        print(f"  - {suggestion}")
+                    print("---------------------------\n")
             else:
                 print(f"Unknown command: {command}")
 
@@ -209,6 +231,65 @@ def main():
             print("\nUse 'exit' to leave the shell.")
         except Exception as e:
             logging.error(f"An error occurred in the shell: {e}")
+
+def _osint_create_folder(args, cursor):
+    cursor.execute("INSERT INTO folders (name) VALUES (?)", (args.name,))
+    logger.info(f"Folder '{args.name}' created successfully.")
+
+def _osint_add_target(args, cursor):
+    folder_id = None
+    if args.folder:
+        cursor.execute("SELECT id FROM folders WHERE name = ?", (args.folder,))
+        folder_row = cursor.fetchone()
+        if not folder_row:
+            logger.error(f"Folder '{args.folder}' not found.")
+            return
+        folder_id = folder_row[0]
+    cursor.execute("INSERT INTO targets (name, description, folder_id) VALUES (?, ?, ?)",
+                   (args.name, args.description, folder_id))
+    logger.info(f"Target '{args.name}' added successfully.")
+
+def _osint_add_media(args, cursor):
+    cursor.execute("SELECT id FROM targets WHERE name = ?", (args.target,))
+    target_row = cursor.fetchone()
+    if not target_row:
+        logger.error(f"Target '{args.target}' not found.")
+        return
+    target_id = target_row[0]
+    file_path = args.path
+    file_type = "image" if file_path.lower().endswith(('.png', '.jpg', '.jpeg')) else "document"
+    metadata = process_image(file_path) if file_type == "image" else process_document(file_path)
+    cursor.execute("INSERT INTO media (target_id, file_path, type) VALUES (?, ?, ?)",
+                   (target_id, file_path, file_type))
+    media_id = cursor.lastrowid
+    for key, value in metadata.items():
+        cursor.execute("INSERT INTO metadata (media_id, key, value) VALUES (?, ?, ?)",
+                       (media_id, key, value))
+    logger.info(f"Media '{file_path}' added to target '{args.target}'.")
+
+def _osint_suggest_attacks(args, cursor):
+    target_name = args.target
+    target_data = {}
+    cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
+    target_row = cursor.fetchone()
+    if not target_row:
+        logger.error(f"Target '{target_name}' not found.")
+        return
+    target_id = target_row[0]
+    cursor.execute("SELECT m.key, m.value FROM metadata m JOIN media ON m.media_id = media.id WHERE media.target_id = ?", (target_id,))
+    metadata_rows = cursor.fetchall()
+    target_data["metadata"] = [f"{key}: {value}" for key, value in metadata_rows]
+    cursor.execute("SELECT COUNT(id) FROM faces WHERE target_id = ?", (target_id,))
+    face_count = cursor.fetchone()[0]
+    target_data["face_count"] = face_count
+    suggestions = analyze_with_ai(target_data)
+    print(f"\n--- AI-Powered Attack Suggestions for {target_name} ---")
+    if suggestions:
+        for s in suggestions:
+            print(f"  - {s}")
+    else:
+        print("  Could not generate suggestions. Check API key and data.")
+    print("\n")
 
 def handle_osint(args):
     """Handles the 'osint' command and its subcommands using argparse."""
@@ -248,7 +329,6 @@ def handle_osint(args):
             parser.print_help()
             return
     except SystemExit:
-        # argparse throws SystemExit on --help or error, so we catch it to prevent the shell from exiting
         return
 
     conn = sqlite3.connect(DB_FILE)
@@ -256,85 +336,26 @@ def handle_osint(args):
 
     try:
         if parsed_args.subcommand == "create-folder":
-            cursor.execute("INSERT INTO folders (name) VALUES (?)", (parsed_args.name,))
-            conn.commit()
-            logger.info(f"Folder '{parsed_args.name}' created successfully.")
-
+            _osint_create_folder(parsed_args, cursor)
         elif parsed_args.subcommand == "add-target":
-            folder_id = None
-            if parsed_args.folder:
-                cursor.execute("SELECT id FROM folders WHERE name = ?", (parsed_args.folder,))
-                folder_row = cursor.fetchone()
-                if not folder_row:
-                    logger.error(f"Folder '{parsed_args.folder}' not found.")
-                    return
-                folder_id = folder_row[0]
-
-            cursor.execute("INSERT INTO targets (name, description, folder_id) VALUES (?, ?, ?)",
-                           (parsed_args.name, parsed_args.description, folder_id))
-            conn.commit()
-            logger.info(f"Target '{parsed_args.name}' added successfully.")
-
+            _osint_add_target(parsed_args, cursor)
         elif parsed_args.subcommand == "add-media":
-            cursor.execute("SELECT id FROM targets WHERE name = ?", (parsed_args.target,))
-            target_row = cursor.fetchone()
-            if not target_row:
-                logger.error(f"Target '{parsed_args.target}' not found.")
-                return
-
-            target_id = target_row[0]
-            file_path = parsed_args.path
-            file_type = "image" if file_path.lower().endswith(('.png', '.jpg', '.jpeg')) else "document"
-            metadata = process_image(file_path) if file_type == "image" else process_document(file_path)
-
-            cursor.execute("INSERT INTO media (target_id, file_path, type) VALUES (?, ?, ?)",
-                           (target_id, file_path, file_type))
-            media_id = cursor.lastrowid
-
-            for key, value in metadata.items():
-                cursor.execute("INSERT INTO metadata (media_id, key, value) VALUES (?, ?, ?)",
-                               (media_id, key, value))
-            conn.commit()
-            logger.info(f"Media '{file_path}' added to target '{parsed_args.target}'.")
-
+            _osint_add_media(parsed_args, cursor)
         elif parsed_args.subcommand == "suggest-attacks":
-            target_name = parsed_args.target
-            target_data = {}
-            cursor.execute("SELECT id FROM targets WHERE name = ?", (target_name,))
-            target_row = cursor.fetchone()
-            if not target_row:
-                logger.error(f"Target '{target_name}' not found.")
-                return
-
-            target_id = target_row[0]
-
-            cursor.execute("SELECT m.key, m.value FROM metadata m JOIN media ON m.media_id = media.id WHERE media.target_id = ?", (target_id,))
-            metadata_rows = cursor.fetchall()
-            target_data["metadata"] = [f"{key}: {value}" for key, value in metadata_rows]
-
-            cursor.execute("SELECT COUNT(id) FROM faces WHERE target_id = ?", (target_id,))
-            face_count = cursor.fetchone()[0]
-            target_data["face_count"] = face_count
-
-            suggestions = analyze_with_ai(target_data)
-            print(f"\n--- AI-Powered Attack Suggestions for {target_name} ---")
-            if suggestions:
-                for s in suggestions:
-                    print(f"  - {s}")
-            else:
-                print("  Could not generate suggestions. Check API key and data.")
-            print("\n")
-
+            _osint_suggest_attacks(parsed_args, cursor)
         elif parsed_args.subcommand == "process-faces":
             process_faces(parsed_args.target, conn)
-
         elif parsed_args.subcommand == "export-report":
             generate_report(parsed_args.target, conn)
 
+        conn.commit()
+
     except sqlite3.IntegrityError as e:
         logger.error(f"Database integrity error: {e}")
+        conn.rollback()
     except sqlite3.Error as e:
         logger.error(f"Database error in command '{parsed_args.subcommand}': {e}")
+        conn.rollback()
     finally:
         if conn:
             conn.close()
