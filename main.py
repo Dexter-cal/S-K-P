@@ -36,6 +36,8 @@ from modules.osint.attack_suggestor import suggest_attacks
 from modules.osint.facial_recognition import process_faces
 from modules.osint.reporting import generate_report
 from modules.osint.ai_analyzer import analyze_with_ai
+from modules.ransomware import run_simulation as run_ransomware_simulation
+import qrcode
 
 # --- Shell State ---
 current_target = None
@@ -55,6 +57,8 @@ def print_help():
     print("  options           - Show options for the current module")
     print("  run               - Execute the current module")
     print("  osint             - Access the OSINT profiler")
+    print("  ransom            - Access the ransomware simulator")
+    print("  qrcode            - Generate a QR code for a URL")
     print("  lure              - Access the social engineering toolkit")
     print("  lotl-agent        - Start the LOTL C2 agent")
     print("  ape-unleash       - Unleash the APE engine")
@@ -185,6 +189,19 @@ def main():
                 pass
             elif command == "osint":
                 handle_osint(args)
+            elif command == "ransom":
+                run_ransomware_simulation(args)
+            elif command == "qrcode":
+                if len(args) != 2:
+                    print("Usage: qrcode <url> <output_file>")
+                else:
+                    url, output_file = args
+                    try:
+                        img = qrcode.make(url)
+                        img.save(output_file)
+                        print(f"QR code saved to {output_file}")
+                    except Exception as e:
+                        print(f"Error generating QR code: {e}")
             else:
                 print(f"Unknown command: {command}")
 
