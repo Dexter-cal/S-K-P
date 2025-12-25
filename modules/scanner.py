@@ -1,5 +1,6 @@
 import socket
 import logging
+import ipaddress
 
 # A simple heuristic model for port-based threat scoring
 PORT_THREAT_MODEL = {
@@ -45,22 +46,29 @@ def scan_host(ip, ports):
 def intelligent_scan(subnet, ports_to_scan=None):
     """
     Performs an "intelligent" scan of a subnet, ranking hosts by threat score.
+    Handles CIDR notation for subnets.
     """
     if ports_to_scan is None:
         ports_to_scan = list(PORT_THREAT_MODEL.keys())
 
-    logging.info(f"Starting intelligent scan of subnet {subnet}...")
-
     live_hosts = []
-    for i in range(1, 255):
-        ip = f"{subnet}{i}"
-        open_ports, score = scan_host(ip, ports_to_scan)
-        if open_ports:
-            live_hosts.append({
-                "ip": ip,
-                "open_ports": open_ports,
-                "threat_score": score
-            })
+    try:
+        network = ipaddress.ip_network(subnet, strict=False)
+        logging.info(f"Starting intelligent scan of subnet {network}...")
+
+        for ip_obj in network.hosts():
+            ip = str(ip_obj)
+            open_ports, score = scan_host(ip, ports_to_scan)
+            if open_ports:
+                live_hosts.append({
+                    "ip": ip,
+                    "open_ports": open_ports,
+                    "threat_score": score
+                })
+    except ValueError:
+        logging.error(f"Invalid subnet format: {subnet}. Please use CIDR notation (e.g., 192.168.1.0/24).")
+        print(f"Error: Invalid subnet '{subnet}'. Please use CIDR notation (e.g., 192.168.1.0/24).")
+        return []
 
     # Sort hosts by threat score in descending order
     sorted_hosts = sorted(live_hosts, key=lambda x: x['threat_score'], reverse=True)

